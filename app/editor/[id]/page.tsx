@@ -1,8 +1,5 @@
 "use client";
 
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { EditorProvider } from "@/components/editor/editor-context";
@@ -17,6 +14,7 @@ export default function EditorPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const projectId = params?.id;
+
   const [meta, setMeta] = useState<{ id: string; name: string; width: number; height: number; background?: string } | null>(null);
   const [leftWidth, setLeftWidth] = useState(320);
   const [rightWidth, setRightWidth] = useState(400);
@@ -45,7 +43,7 @@ export default function EditorPage() {
   if (!projectId || !meta) return null;
 
   return (
-    <EditorProvider projectId={projectId} initialMeta={meta}>
+    <EditorProvider initialMeta={meta} projectId={projectId}>
       <div className="flex flex-col h-[calc(100vh)]" ref={containerRef}>
         <MenuBar
           projectId={projectId}
@@ -59,8 +57,8 @@ export default function EditorPage() {
             {showLeft && (
               <>
                 <div className="min-h-0 flex-shrink-0" style={{ width: leftWidth }}>
-                  <div ref={leftPaneRef} className="h-full flex flex-col pr-1">
-                    <div className="min-h-[160px] overflow-auto" style={{ flex: '1 1 auto' }}>
+                  <div className="h-full flex flex-col pr-1" ref={leftPaneRef}>
+                    <div className="min-h-[160px] overflow-auto" style={{ flex: "1 1 auto" }}>
                       <LayersPanel />
                     </div>
                     <div
@@ -121,11 +119,9 @@ export default function EditorPage() {
                 />
               </>
             )}
-
             <div className="min-h-0 flex-1">
               <CanvasPreview />
             </div>
-
             {showRight && (
               <>
                 <div
@@ -148,7 +144,6 @@ export default function EditorPage() {
                   }}
                   aria-label="Resize right column"
                 />
-
                 <div className="min-h-0 flex-shrink-0" style={{ width: rightWidth }}>
                   <Inspector />
                 </div>
