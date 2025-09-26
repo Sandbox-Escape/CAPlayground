@@ -1,156 +1,125 @@
 "use client";
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Project, AnyLayer, CAProject } from '@/types';
+import { Project, AnyLayer } from '@/types';
 import { unpackCA } from '@/lib/ca-format';
-import { recordProjectCreated } from '@/lib/analytics';
+
+// Local keys
+const PROJECT_INDEX_KEY = 'caplayground-project-index:v2';
+const PROJECT_KEY = (id: string) => `caplayground-project:${id}`;
+
+// Helper to load/save project list locally
+function loadProjectIndex(): Project[] {
+  try {
+    const raw = localStorage.getItem(PROJECT_INDEX_KEY);
+    return raw ? (JSON.parse(raw) as Project[]) : [];
+  } catch {
+    return [];
+  }
+}
+function saveProjectIndex(list: Project[]) {
+  try {
+    localStorage.setItem(PROJECT_INDEX_KEY, JSON.stringify(list));
+  } catch {}
+}
 
 export default function ProjectsPage() {
   const router = useRouter();
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // state
   const [projects, setProjects] = useState<Project[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
-  const [isSelectMode, setIsSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [isRenameOpen, setIsRenameOpen] = useState(false);
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const [updateReason, setUpdateReason] = useState<string>('');
 
-  const projectsArray = Array.isArray(projects) ? projects : [];
+  // Load local projects on mount; detect outdated/missing
+  useEffect(() => {
+    const list = loadProjectIndex();
+    setProjects(Array.isArray(list) ? list : []);
 
-  const createProjectFromDialog = () => {
+    // Simple heuristic: ensure each listed project has a corresponding doc
+    const missing = list.find(p => !localStorage.getItem(PROJECT_KEY(p.id)));
+    if (!list.length || missing) {
+      setUpdateReason(!list.length ? 'No local projects found.' : 'Some local project data is missing.');
+      setShowUpdatePrompt(true);
+    }
+  }, []);
+
+  // Persist index when projects change
+  useEffect(() => {
+    saveProjectIndex(projects);
+  }, [projects]);
+
+  const createProject = () => {
     if (!newProjectName.trim()) return;
-    
     const id = Date.now().toString();
-    const newProject: Project = {
+    const proj: Project = {
       id,
       name: newProjectName.trim(),
       createdAt: new Date().toISOString(),
       width: 390,
-      height: 844
-    };
-    
-    setProjects([...projectsArray, newProject]);
-    recordProjectCreated();
-    
+      height: 844,
+    } as any;
+
     const doc = {
-      meta: { id, name: newProject.name, width: 390, height: 844, background: '#e5e7eb' },
+      meta: { id, name: proj.name, width: 390, height: 844, background: '#e5e7eb' },
       layers: [],
       selectedId: null,
-      states: ["Locked", "Unlock", "Sleep"],
+      states: ['Locked', 'Unlock', 'Sleep'],
       stateOverrides: {},
-      stateTransitions: []
+      stateTransitions: [],
     };
-    
-    try {
-      localStorage.setItem(`caplayground-project:${id}`, JSON.stringify(doc));
-    } catch {}
-    
+
+    try { localStorage.setItem(PROJECT_KEY(id), JSON.stringify(doc)); } catch {}
+    setProjects(prev => [...prev, proj]);
+    setIsCreateOpen(false);
+    setNewProjectName('');
     router.push(`/editor/${id}`);
   };
 
-  const saveEdit = () => {
-    const key = `caplayground-project:${editingProjectId}`;
-    try {
-      const current = localStorage.getItem(key);
-      if (current) {
-        const parsed = JSON.parse(current);
-        if (parsed?.meta) parsed.meta.name = editingName.trim();
-        localStorage.setItem(key, JSON.stringify(parsed));
-      }
-    } catch {}
-    setEditingProjectId(null);
-    setEditingName("");
-    setIsRenameOpen(false);
-  };
-
-  const deleteProject = (id: string) => {
-    setProjects(projectsArray.filter((project) => project.id !== id));
-  };
-
-  const confirmDelete = (id: string) => {
-    setPendingDeleteId(id);
-    setIsDeleteOpen(true);
-  };
-
-  const toggleSelectMode = () => {
-    setIsSelectMode((v) => {
-      const next = !v;
-      if (!next) setSelectedIds([]);
-      return next;
-    });
-  };
-
-  const toggleSelection = (id: string) => {
-    setSelectedIds((prev) => (
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    ));
-  };
-
-  const openBulkDelete = () => setIsBulkDeleteOpen(true);
-
-  const performBulkDelete = () => {
-    if (selectedIds.length === 0) return;
-    setProjects(projectsArray.filter((p) => !selectedIds.includes(p.id)));
-    setSelectedIds([]);
-    setIsSelectMode(false);
-    setIsBulkDeleteOpen(false);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      createProjectFromDialog();
-    }
-  };
-
-  const handleEditKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      saveEdit();
-    } else if (e.key === "Escape") {
-      setEditingProjectId(null);
-      setEditingName("");
-    }
+  const confirmDelete = (id: string) => { setPendingDeleteId(id); setIsDeleteOpen(true); };
+  const doDelete = () => {
+    if (!pendingDeleteId) return;
+    try { localStorage.removeItem(PROJECT_KEY(pendingDeleteId)); } catch {}
+    setProjects(prev => prev.filter(p => p.id !== pendingDeleteId));
+    setPendingDeleteId(null);
+    setIsDeleteOpen(false);
   };
 
   const handleImportClick = () => importInputRef.current?.click();
-
   const handleImportChange: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     try {
       const file = e.target.files?.[0];
       if (!file) return;
-      
       const bundle = await unpackCA(file);
       const id = Date.now().toString();
-      const name = bundle.project.name || "Imported Project";
-      const width = Math.round(bundle.project.width || (bundle.root?.size?.w ?? 0));
-      const height = Math.round(bundle.project.height || (bundle.root?.size?.h ?? 0));
-      
-      const newProj: Project = { id, name, createdAt: new Date().toISOString(), width, height };
-      setProjects([...(projectsArray || []), newProj]);
-      recordProjectCreated();
-      
+      const name = bundle.project?.name || 'Imported Project';
+      const width = Math.round(bundle.project?.width || (bundle.root?.size?.w ?? 390));
+      const height = Math.round(bundle.project?.height || (bundle.root?.size?.h ?? 844));
+
+      const proj: Project = { id, name, createdAt: new Date().toISOString(), width, height } as any;
+
       const root = bundle.root as any;
       const layers = root?.type === 'group' && Array.isArray(root.children) ? root.children : root ? [root] : [];
-      const importedStates = Array.isArray(bundle.states) ? bundle.states.filter((n) => !/^base(\s*state)?$/i.test((n || '').trim())) : [];
-      
+      const importedStates = Array.isArray(bundle.states)
+        ? bundle.states.filter((n) => !/^base(\s*state)?$/i.test((n || '').trim()))
+        : [];
+
       const doc = {
         meta: { id, name, width, height, background: root?.backgroundColor ?? '#e5e7eb' },
         layers,
         selectedId: null,
-        states: importedStates.length > 0 ? importedStates : ["Locked", "Unlock", "Sleep"],
+        states: importedStates.length > 0 ? importedStates : ['Locked', 'Unlock', 'Sleep'],
         stateOverrides: bundle.stateOverrides || {},
-        stateTransitions: bundle.stateTransitions || []
+        stateTransitions: bundle.stateTransitions || [],
       };
-      
-      try {
-        localStorage.setItem(`caplayground-project:${id}`, JSON.stringify(doc));
-      } catch {}
-      
+
+      try { localStorage.setItem(PROJECT_KEY(id), JSON.stringify(doc)); } catch {}
+      setProjects(prev => [...prev, proj]);
       router.push(`/editor/${id}`);
     } catch (err) {
       console.error('Import failed', err);
@@ -159,160 +128,87 @@ export default function ProjectsPage() {
     }
   };
 
-  function ProjectThumb({ doc }: { doc: { meta: Pick<CAProject, 'id' | 'name' | 'width' | 'height' | 'background'>; layers: AnyLayer[] } }) {
-    const wrapRef = useRef<HTMLDivElement>(null);
-    const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
-    
-    useEffect(() => {
-      const el = wrapRef.current;
-      if (!el) return;
-      
-      const ro = new ResizeObserver(() => {
-        const r = el.getBoundingClientRect();
-        setWrapSize({ w: Math.round(r.width), h: Math.round(r.height) });
-      });
-      
-      ro.observe(el);
-      return () => ro.disconnect();
-    }, []);
-    
-    const w = doc.meta.width || 390;
-    const h = doc.meta.height || 844;
-    const s = wrapSize.w > 0 && wrapSize.h > 0 ? Math.min(wrapSize.w / w, wrapSize.h / h) : 1;
-    const ox = (wrapSize.w - w * s) / 2;
-    const oy = (wrapSize.h - h * s) / 2;
-    
-    const renderLayer = (l: AnyLayer): React.ReactNode => {
-      const common: React.CSSProperties = {
-        position: 'absolute',
-        left: l.position.x,
-        top: l.position.y,
-        width: l.size.w,
-        height: l.size.h,
-        transform: `rotate(${(l as any).rotation ?? 0}deg)`,
-        opacity: (l as any).opacity ?? 1,
-        display: (l as any).visible === false ? 'none' as any : undefined,
-        overflow: 'hidden'
-      };
-      
-      if (l.type === 'text') {
-        const t = l as any;
-        return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align }}>{t.text}</div>;
-      }
-      
-      if (l.type === 'image') {
-        const im = l as any;
-        return <img key={l.id} alt={im.name} draggable={false} style={{ ...common, objectFit: (im as any).contentMode || 'cover' }} />;
-      }
-      
-      if (l.type === 'shape') {
-        const s = l as any;
-        const corner = (s.cornerRadius ?? s.radius) ?? 0;
-        const borderRadius = s.shape === 'circle' ? 9999 : corner;
-        const style: React.CSSProperties = { ...common, background: s.fill, borderRadius };
-        
-        if (s.borderColor && s.borderWidth) {
-          style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
-        }
-        
-        return <div key={l.id} style={style} />;
-      }
-      
-      if ((l as any).type === 'group') {
-        const g = l as any;
-        return (
-          <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
-            {Array.isArray(g.children) ? g.children.map((c: AnyLayer) => renderLayer(c)) : null}
-          </div>
-        );
-      }
-      
-      return null;
-    };
-    
-    return (
-      <div className="w-full h-full relative bg-background" ref={wrapRef}>
-        <div className="absolute" style={{
-          width: w,
-          height: h,
-          background: doc.meta.background ?? '#e5e7eb',
-          transform: `translate(${ox}px, ${oy}px) scale(${s})`,
-          transformOrigin: 'top left',
-          borderRadius: 4,
-          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
-        }}>
-          {doc.layers.map(renderLayer)}
-        </div>
-      </div>
-    );
-  }
+  // Update/import prompt actions
+  const handleUpdateFromFile = () => handleImportClick();
+  const handleDismissUpdate = () => setShowUpdatePrompt(false);
 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
+        {/* Update/Import prompt */}
+        {showUpdatePrompt && (
+          <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-semibold mb-1">Local data needs attention</h2>
+                <p className="text-sm text-muted-foreground">{updateReason} Import a .ca file to populate or update your local projects.</p>
+              </div>
+              <div className="flex gap-2">
+                <button className="btn btn-secondary" onClick={handleDismissUpdate}>Dismiss</button>
+                <button className="btn btn-primary" onClick={handleUpdateFromFile}>Import</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Projects</h1>
           <div className="flex gap-2">
-            <button onClick={handleImportClick} className="btn btn-secondary">
-              Import .ca
-            </button>
-            <button onClick={() => setIsCreateOpen(true)} className="btn btn-primary">
-              New Project
-            </button>
+            <button className="btn btn-secondary" onClick={handleImportClick}>Import .ca</button>
+            <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>New Project</button>
           </div>
         </div>
-        
-        <input
-          type="file"
-          ref={importInputRef}
-          onChange={handleImportChange}
-          accept=".ca"
-          className="hidden"
-        />
-        
-        {projectsArray.length === 0 ? (
+
+        <input type="file" ref={importInputRef} onChange={handleImportChange} accept=".ca" className="hidden" />
+
+        {projects.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No projects yet</p>
-            <button onClick={() => setIsCreateOpen(true)} className="btn btn-primary">
-              Create your first project
-            </button>
+            <button className="btn btn-primary" onClick={() => setIsCreateOpen(true)}>Create your first project</button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projectsArray.map((project) => (
-              <div key={project.id} className="card p-4">
-                <div className="aspect-[9/16] mb-4 bg-muted rounded overflow-hidden">
-                  <ProjectThumb doc={{
-                    meta: {
-                      id: project.id,
-                      name: project.name,
-                      width: project.width,
-                      height: project.height,
-                      background: '#e5e7eb'
-                    },
-                    layers: []
-                  }} />
+            {projects.map((project) => (
+              <div className="card p-4" key={project.id}>
+                <div className="aspect-[9/16] mb-4 bg-muted rounded overflow-hidden flex items-center justify-center text-sm text-muted-foreground">
+                  {project.width}×{project.height}
                 </div>
                 <h3 className="font-semibold mb-2">{project.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Created {new Date(project.createdAt).toLocaleDateString()}
-                </p>
+                <p className="text-sm text-muted-foreground mb-4">Created {new Date(project.createdAt as any).toLocaleDateString()}</p>
                 <div className="flex gap-2">
-                  <button 
-                    onClick={() => router.push(`/editor/${project.id}`)} 
-                    className="btn btn-primary flex-1"
-                  >
-                    Open
-                  </button>
-                  <button 
-                    onClick={() => confirmDelete(project.id)} 
-                    className="btn btn-destructive"
-                  >
-                    Delete
-                  </button>
+                  <button onClick={() => router.push(`/editor/${project.id}`)} className="btn btn-primary flex-1">Open</button>
+                  <button onClick={() => confirmDelete(project.id)} className="btn btn-destructive">Delete</button>
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Simple create dialog */}
+        {isCreateOpen && (
+          <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+            <div className="bg-background border rounded-lg p-4 w-full max-w-sm">
+              <h2 className="font-semibold mb-2">New Project</h2>
+              <input value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} placeholder="Project name" className="w-full input mb-4" />
+              <div className="flex justify-end gap-2">
+                <button className="btn btn-secondary" onClick={() => setIsCreateOpen(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={createProject}>Create</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Simple delete confirm */}
+        {isDeleteOpen && (
+          <div className="fixed inset-0 bg-black/40 grid place-items-center p-4">
+            <div className="bg-background border rounded-lg p-4 w-full max-w-sm">
+              <h2 className="font-semibold mb-2">Delete project?</h2>
+              <p className="text-sm text-muted-foreground mb-4">This only affects your local data.</p>
+              <div className="flex justify-end gap-2">
+                <button className="btn btn-secondary" onClick={() => setIsDeleteOpen(false)}>Cancel</button>
+                <button className="btn btn-destructive" onClick={doDelete}>Delete</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
