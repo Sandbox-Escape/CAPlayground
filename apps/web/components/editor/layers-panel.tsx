@@ -17,6 +17,7 @@ export function LayersPanel() {
   const layers = current?.layers ?? [];
   const selectedId = current?.selectedId ?? null;
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -74,44 +75,81 @@ export function LayersPanel() {
     const isCollapsed = collapsed.has(l.id);
     const isChecked = multiSelectedIds.includes(l.id);
     
+    const showDropLineBefore = dragOverId === l.id && dropPosition === 'before';
+    const showDropLineAfter = dragOverId === l.id && dropPosition === 'after';
+    
     const row = (
       <div
         key={l.id}
-        className={`py-2 flex items-center justify-between cursor-pointer ${selectedId === l.id ? 'bg-accent/30' : 'hover:bg-muted/50'} ${dragOverId === l.id ? 'ring-1 ring-accent/60' : ''}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (isSelectMode) toggleMultiSelect(l.id);
-          else selectLayer(l.id);
-        }}
-        onDoubleClick={() => startRename(l)}
-        style={{ paddingLeft: 8 + depth * 16 }}
-        draggable
-        onDragStart={(e) => {
-          e.stopPropagation();
-          e.dataTransfer.setData('text/cap-layer-id', l.id);
-          try { e.dataTransfer.effectAllowed = 'move'; } catch {}
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          setDragOverId(l.id);
-        }}
-        onDragLeave={() => {
-          setDragOverId((prev) => (prev === l.id ? null : prev));
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const src = e.dataTransfer.getData('text/cap-layer-id');
-          setDragOverId(null);
-          if (!src || src === l.id) return;
-          if (isGroup && (e.altKey || e.ctrlKey || e.metaKey)) {
-            moveLayerInto(src, l.id);
-          } else {
-            moveLayer(src, l.id);
-          }
-        }}
+        className="relative"
       >
+        {showDropLineBefore && (
+          <div 
+            className="absolute left-0 right-0 h-0.5 bg-accent z-10" 
+            style={{ top: 0, marginLeft: 8 + depth * 16 }}
+          />
+        )}
+        <div
+          className={`py-2 flex items-center justify-between cursor-pointer ${selectedId === l.id ? 'bg-accent/30' : 'hover:bg-muted/50'}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isSelectMode) toggleMultiSelect(l.id);
+            else selectLayer(l.id);
+          }}
+          onDoubleClick={() => startRename(l)}
+          style={{ paddingLeft: 8 + depth * 16 }}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.setData('text/cap-layer-id', l.id);
+            try { e.dataTransfer.effectAllowed = 'move'; } catch {}
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = e.currentTarget.getBoundingClientRect();
+            const mouseY = e.clientY;
+            const relativeY = mouseY - rect.top;
+            const position = relativeY < rect.height / 2 ? 'before' : 'after';
+            setDragOverId(l.id);
+            setDropPosition(position);
+          }}
+          onDragLeave={() => {
+            setDragOverId((prev) => (prev === l.id ? null : prev));
+            setDropPosition(null);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const src = e.dataTransfer.getData('text/cap-layer-id');
+            const position = dropPosition;
+            setDragOverId(null);
+            setDropPosition(null);
+            if (!src || src === l.id) return;
+            if (isGroup && (e.altKey || e.ctrlKey || e.metaKey)) {
+              moveLayerInto(src, l.id);
+            } else {
+              let beforeId = l.id;
+              if (position === 'after') {
+                const findNextSibling = (layers: AnyLayer[], targetId: string): string | null => {
+                  for (let i = 0; i < layers.length; i++) {
+                    if (layers[i].id === targetId) {
+                      return i < layers.length - 1 ? layers[i + 1].id : null;
+                    }
+                    if (layers[i].type === 'group') {
+                      const result = findNextSibling((layers[i] as GroupLayer).children, targetId);
+                      if (result !== undefined) return result;
+                    }
+                  }
+                  return undefined as any;
+                };
+                const nextId = findNextSibling(layers, l.id);
+                beforeId = nextId !== undefined ? nextId : null as any;
+              }
+              moveLayer(src, beforeId);
+            }
+          }}
+        >
         <div className="truncate flex-1 min-w-0 flex items-center gap-1">
           {isSelectMode ? (
             <button
@@ -180,6 +218,13 @@ export function LayersPanel() {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+        </div>
+        {showDropLineAfter && (
+          <div 
+            className="absolute left-0 right-0 h-0.5 bg-accent z-10" 
+            style={{ bottom: 0, marginLeft: 8 + depth * 16 }}
+          />
+        )}
       </div>
     );
     if (isGroup && !isCollapsed) {

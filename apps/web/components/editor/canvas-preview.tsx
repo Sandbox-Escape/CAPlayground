@@ -880,15 +880,21 @@ export function CanvasPreview() {
       const dy = (ev.clientY - d.startClientY) / scale;
       let cssLeft = d.startX + dx;
       let cssTop = d.startY + dy;
-      const w = docRef.current?.meta.width ?? 0;
+      const canvasW = docRef.current?.meta.width ?? 0;
+      const canvasH = docRef.current?.meta.height ?? 0;
       const h = d.canvasH as number;
-      if (w > 0 && h > 0 && (snapEdgesEnabled || snapLayersEnabled)) {
+      if (canvasW > 0 && canvasH > 0 && (snapEdgesEnabled || snapLayersEnabled)) {
         const th = SNAP_THRESHOLD;
         const xPairs: Array<[number, number]> = [];
         const yPairs: Array<[number, number]> = [];
+        
+        const parentAbs = getParentAbsContextFor(d.id);
+        const absLeft = parentAbs.left + cssLeft;
+        const absTop = parentAbs.top + cssTop;
+        
         if (snapEdgesEnabled) {
-          xPairs.push([0, 0], [(w - d.w) / 2, w / 2], [w - d.w, w]);
-          yPairs.push([0, 0], [(h - d.h) / 2, h / 2], [h - d.h, h]);
+          xPairs.push([0 - parentAbs.left, 0], [(canvasW - d.w) / 2 - parentAbs.left, canvasW / 2], [canvasW - d.w - parentAbs.left, canvasW]);
+          yPairs.push([0 - parentAbs.top, 0], [(canvasH - d.h) / 2 - parentAbs.top, canvasH / 2], [canvasH - d.h - parentAbs.top, canvasH]);
         }
         if (snapLayersEnabled) {
           const others = (renderedLayers || []).filter((ol) => ol.id !== d.id);
@@ -896,31 +902,31 @@ export function CanvasPreview() {
             const L = ol as any;
             const lw = L.size?.w ?? 0;
             const lh = L.size?.h ?? 0;
-            const lt = computeCssLT(L, h, yUp);
-            const left = lt.left;
-            const right = lt.left + lw;
+            const otherAbs = computeAbsoluteLTFor(L.id);
+            const left = otherAbs.left - parentAbs.left;
+            const right = left + lw;
             const cx = left + lw / 2;
-            const top = lt.top;
-            const bottom = lt.top + lh;
+            const top = otherAbs.top - parentAbs.top;
+            const bottom = top + lh;
             const cy = top + lh / 2;
             const pushIfNotCanvasEdgeX = (t: number, g: number) => {
-              if (!snapEdgesEnabled && (g === 0 || g === w)) return;
+              if (!snapEdgesEnabled && (g === 0 || g === canvasW)) return;
               xPairs.push([t, g]);
             };
             const pushIfNotCanvasEdgeY = (t: number, g: number) => {
-              if (!snapEdgesEnabled && (g === 0 || g === h)) return;
+              if (!snapEdgesEnabled && (g === 0 || g === canvasH)) return;
               yPairs.push([t, g]);
             };
-            pushIfNotCanvasEdgeX(left, left);
-            pushIfNotCanvasEdgeX(right, right);
-            pushIfNotCanvasEdgeX(right - d.w, right);
-            pushIfNotCanvasEdgeX(left - d.w, left);
-            pushIfNotCanvasEdgeX(cx - d.w / 2, cx);
-            pushIfNotCanvasEdgeY(top, top);
-            pushIfNotCanvasEdgeY(bottom, bottom);
-            pushIfNotCanvasEdgeY(bottom - d.h, bottom);
-            pushIfNotCanvasEdgeY(top - d.h, top);
-            pushIfNotCanvasEdgeY(cy - d.h / 2, cy);
+            pushIfNotCanvasEdgeX(left, otherAbs.left);
+            pushIfNotCanvasEdgeX(right, otherAbs.left + lw);
+            pushIfNotCanvasEdgeX(right - d.w, otherAbs.left + lw);
+            pushIfNotCanvasEdgeX(left - d.w, otherAbs.left);
+            pushIfNotCanvasEdgeX(cx - d.w / 2, otherAbs.left + lw / 2);
+            pushIfNotCanvasEdgeY(top, otherAbs.top);
+            pushIfNotCanvasEdgeY(bottom, otherAbs.top + lh);
+            pushIfNotCanvasEdgeY(bottom - d.h, otherAbs.top + lh);
+            pushIfNotCanvasEdgeY(top - d.h, otherAbs.top);
+            pushIfNotCanvasEdgeY(cy - d.h / 2, otherAbs.top + lh / 2);
           }
         }
         const nearestPair = (val: number, pairs: Array<[number, number]>) => {
