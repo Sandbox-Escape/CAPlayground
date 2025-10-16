@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { InspectorTabProps } from "../types";
+import type { KeyPath } from "@/lib/ca/types";
 
 interface AnimationsTabProps extends InspectorTabProps {
   animEnabled: boolean;
@@ -43,7 +44,7 @@ export function AnimationsTab({
                     if ((selectedBase as any)?.type === 'video') return;
                     const enabled = !!checked;
                     const currentAnim = (selectedBase as any)?.animations || {};
-                    const kp = (currentAnim.keyPath ?? 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+                    const kp = (currentAnim.keyPath ?? 'position') as KeyPath;
                     let values: Array<{ x: number; y: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
                     if (enabled && values.length === 0) {
                       if (kp === 'position') {
@@ -54,6 +55,8 @@ export function AnimationsTab({
                         values = [((selectedBase as any).position?.y ?? 0) as number];
                       } else if (kp === 'transform.rotation.z') {
                         values = [Number((selectedBase as any)?.rotation ?? 0)];
+                      } else if (kp === 'opacity') {
+                        values = [Number((selectedBase as any)?.opacity ?? 1)];
                       } else {
                         values = [0];
                       }
@@ -75,7 +78,7 @@ export function AnimationsTab({
               if ((selectedBase as any)?.type === 'video') return;
               const enabled = !!checked;
               const currentAnim = (selectedBase as any)?.animations || {};
-              const kp = (currentAnim.keyPath ?? 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+              const kp = (currentAnim.keyPath ?? 'position') as KeyPath;
               let values: Array<{ x: number; y: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
               if (enabled && values.length === 0) {
                 if (kp === 'position') {
@@ -86,6 +89,8 @@ export function AnimationsTab({
                   values = [((selectedBase as any).position?.y ?? 0) as number];
                 } else if (kp === 'transform.rotation.z') {
                   values = [Number((selectedBase as any)?.rotation ?? 0)];
+                } else if (kp === 'opacity') {
+                  values = [Number((selectedBase as any)?.opacity ?? 1)];
                 } else {
                   values = [0];
                 }
@@ -102,7 +107,7 @@ export function AnimationsTab({
             value={((selectedBase as any)?.animations?.keyPath ?? 'position') as any}
             onValueChange={(v) => {
               const current = (selectedBase as any)?.animations || {};
-              const kp = v as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+              const kp = v as KeyPath;
               const prevVals = (current.values || []) as Array<{ x: number; y: number } | number>;
               let values: Array<{ x: number; y: number } | number> = [];
               if (kp === 'position') {
@@ -119,6 +124,8 @@ export function AnimationsTab({
               } else if (kp === 'transform.rotation.z' || kp === 'transform.rotation.x' || kp === 'transform.rotation.y') {
                 const fallback = (kp === 'transform.rotation.z') ? Number((selectedBase as any)?.rotation ?? 0) : 0;
                 values = prevVals.map((pv: any) => typeof pv === 'number' ? pv : fallback);
+              } else if (kp === 'opacity') {
+                values = prevVals.map((pv: any) => Number((selectedBase as any)?.opacity ?? 1));
               }
               updateLayer(selectedBase!.id, { animations: { ...current, keyPath: kp, values } } as any);
             }}
@@ -134,6 +141,7 @@ export function AnimationsTab({
               <SelectItem value="transform.rotation.x">transform.rotation.x</SelectItem>
               <SelectItem value="transform.rotation.y">transform.rotation.y</SelectItem>
               <SelectItem value="transform.rotation.z">transform.rotation.z</SelectItem>
+              <SelectItem value="opacity">opacity</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -215,9 +223,10 @@ export function AnimationsTab({
         <div className="flex items-center justify-between">
           <Label>
             {(() => {
-              const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as string;
+              const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
               if (kp.startsWith('transform.rotation')) return 'Values (Degrees)';
               if (kp === 'position') return 'Values (CGPoint)';
+              if (kp === 'opacity') return 'Values (Percentage)';
               return 'Values (Number)';
             })()}
           </Label>
@@ -227,7 +236,7 @@ export function AnimationsTab({
             variant="secondary"
             onClick={() => {
               const current = (selectedBase as any)?.animations || {};
-              const kp = (current.keyPath ?? 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+              const kp = (current.keyPath ?? 'position') as KeyPath;
               const values = [...(current.values || [])] as any[];
               if (kp === 'position') {
                 values.push({ x: (selectedBase as any).position?.x ?? 0, y: (selectedBase as any).position?.y ?? 0 });
@@ -239,6 +248,8 @@ export function AnimationsTab({
                 values.push(Number((selectedBase as any)?.rotation ?? 0));
               } else if (kp === 'transform.rotation.x' || kp === 'transform.rotation.y') {
                 values.push(0);
+              } else if (kp === 'opacity') {
+                values.push(Number((selectedBase as any)?.opacity ?? 1));
               }
               updateLayer(selectedBase!.id, { animations: { ...current, values } } as any);
             }}
@@ -249,7 +260,7 @@ export function AnimationsTab({
         </div>
         <div className={`space-y-2 ${animEnabled ? '' : 'opacity-50'}`}>
           {(() => {
-            const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+            const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
             const values = (((selectedBase as any)?.animations?.values || []) as Array<any>);
             if (kp === 'position') {
               return (
@@ -318,22 +329,33 @@ export function AnimationsTab({
                 {values.map((val, idx) => (
                   <div key={idx} className="grid grid-cols-2 gap-2 items-end">
                     <div className="space-y-1">
-                      <Label className="text-xs">{kp === 'position.x' ? 'X' : kp === 'position.y' ? 'Y' : 'Degrees'}</Label>
-                      <Input
-                        type="number"
-                        step="1"
-                        className="h-8"
-                        value={Number.isFinite(Number(val)) ? String(Math.round(Number(val))) : ''}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          const current = (selectedBase as any)?.animations || {};
-                          const arr = [...(current.values || [])];
-                          const n = Number(v);
-                          arr[idx] = Number.isFinite(n) ? n : 0;
-                          updateLayer(selectedBase!.id, { animations: { ...current, values: arr } } as any);
-                        }}
-                        disabled={!animEnabled}
-                      />
+                      <Label className="text-xs">
+                        {kp === 'position.x' ? 'X' : kp === 'position.y' ? 'Y' : kp === 'opacity' ? 'Opacity' : 'Degrees'}
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          step="1"
+                          className="h-8"
+                          value={kp === 'opacity' ? String(Math.round((typeof val === 'number' ? val : 1) * 100)) : Number.isFinite(Number(val)) ? String(Math.round(Number(val))) : ''}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const current = (selectedBase as any)?.animations || {};
+                            const arr = [...(current.values || [])];
+                            const n = Number(v);
+                            if (kp === 'opacity') {
+                              const p = Math.max(0, Math.min(100, Math.round(n)));
+                              const val = Math.round(p) / 100;
+                              arr[idx] = val;
+                            } else {
+                              arr[idx] = Number.isFinite(n) ? n : 0;
+                            }
+                            updateLayer(selectedBase!.id, { animations: { ...current, values: arr } } as any);
+                          }}
+                          disabled={!animEnabled}
+                        />
+                        {kp === 'opacity' && <span className="text-xs text-muted-foreground">%</span>}
+                      </div>
                     </div>
                     <div className="flex items-center justify-end pb-0.5">
                       <Button

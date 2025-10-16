@@ -32,15 +32,7 @@ export type LayerBase = {
   geometryFlipped?: 0 | 1;
   // Clip contents for sublayers to this layer's bounds (0 = off, 1 = on)
   masksToBounds?: 0 | 1;
-  animations?: {
-    enabled?: boolean;
-    keyPath?: 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
-    autoreverses?: 0 | 1;
-    values?: Array<Vec2 | number>;
-    durationSeconds?: number;
-    infinite?: 0 | 1;
-    repeatDurationSeconds?: number;
-  };
+  animations?: Animations;
 };
 
 export type ImageLayer = LayerBase & {
@@ -142,7 +134,7 @@ export type CAStateTransitions = CAStateTransition[];
 export type GyroParallaxDictionary = {
   axis: 'x' | 'y';
   image: string; // always null
-  keyPath: 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+  keyPath: KeyPath;
   layerName: string;
   mapMaxTo: number;
   mapMinTo: number;
@@ -158,4 +150,16 @@ export type CAProjectBundle = {
   stateOverrides?: CAStateOverrides;
   stateTransitions?: CAStateTransitions;
   wallpaperParallaxGroups?: GyroParallaxDictionary[];
+};
+
+export type KeyPath = 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z' | 'opacity';
+
+export type Animations = {
+  enabled?: boolean;
+  keyPath?: KeyPath;
+  autoreverses?: 0 | 1;
+  values?: Array<Vec2 | number>;
+  durationSeconds?: number;
+  infinite?: 0 | 1;
+  repeatDurationSeconds?: number;
 };

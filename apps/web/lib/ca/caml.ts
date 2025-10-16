@@ -1,4 +1,4 @@
-import { AnyLayer, CAProject, GroupLayer, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary } from './types';
+import { AnyLayer, CAProject, GroupLayer, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations } from './types';
 
 const CAML_NS = 'http://www.apple.com/CoreAnimation/1.0';
 
@@ -336,6 +336,7 @@ function parseCATextLayer(el: Element): AnyLayer {
   const rotationZ = attr(el, 'transform.rotation.z');
   const rotationX = attr(el, 'transform.rotation.x');
   const rotationY = attr(el, 'transform.rotation.y');
+  const opacityAttr = attr(el, 'opacity');
   const fontSizeAttr = attr(el, 'fontSize');
   const alignmentMode = attr(el, 'alignmentMode') as TextLayer['align'] | undefined;
   const wrappedAttr = attr(el, 'wrapped');
@@ -359,6 +360,7 @@ function parseCATextLayer(el: Element): AnyLayer {
     rotation: rotationZ ? ((Number(rotationZ) * 180) / Math.PI) : undefined,
     rotationX: rotationX ? ((Number(rotationX) * 180) / Math.PI) : undefined,
     rotationY: rotationY ? ((Number(rotationY) * 180) / Math.PI) : undefined,
+    opacity: opacityAttr ? Number(opacityAttr) : undefined,
     anchorPoint: (anchorPt.length === 2 && (anchorPt[0] !== 0.5 || anchorPt[1] !== 0.5)) ? { x: anchorPt[0], y: anchorPt[1] } : undefined,
     geometryFlipped: typeof geometryFlippedAttr !== 'undefined' ? ((geometryFlippedAttr === '1' ? 1 : 0) as 0 | 1) : undefined,
     masksToBounds: typeof masksToBoundsAttr !== 'undefined' ? ((masksToBoundsAttr === '1' ? 1 : 0) as 0 | 1) : undefined,
@@ -391,6 +393,8 @@ function parseCATextLayer(el: Element): AnyLayer {
     }
   }
 
+  const parsedAnimations = parseCALayerAnimations(el);
+
   const layer: AnyLayer = {
     ...base,
     type: 'text',
@@ -400,6 +404,7 @@ function parseCATextLayer(el: Element): AnyLayer {
     color: colorHex,
     align: alignmentMode,
     wrapped: typeof wrappedAttr !== 'undefined' ? ((wrappedAttr === '1' ? 1 : 0) as 0 | 1) : undefined,
+    ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
   } as AnyLayer;
   return layer;
 }
@@ -488,6 +493,8 @@ function parseCAGradientLayer(el: Element): AnyLayer {
     }
   }
 
+  const parsedAnimations = parseCALayerAnimations(el);
+
   const layer: AnyLayer = {
     ...base,
     type: 'gradient',
@@ -495,6 +502,7 @@ function parseCAGradientLayer(el: Element): AnyLayer {
     startPoint,
     endPoint,
     colors,
+    ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
   } as AnyLayer;
   
   return layer;
@@ -605,78 +613,7 @@ function parseCALayer(el: Element): AnyLayer {
     masksToBounds: typeof masksToBoundsAttr !== 'undefined' ? ((masksToBoundsAttr === '1' ? 1 : 0) as 0 | 1) : undefined,
   } as const;
 
-  // Parse per-layer keyframe animations
-  let parsedAnimations: {
-    enabled?: boolean;
-    keyPath?: 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
-    autoreverses?: 0 | 1;
-    values?: Array<{ x: number; y: number } | number>;
-    durationSeconds?: number;
-    infinite?: 0 | 1;
-    repeatDurationSeconds?: number;
-  } | undefined;
-  try {
-    const animationsEl = el.getElementsByTagNameNS(CAML_NS, 'animations')[0];
-    const animNode = animationsEl?.getElementsByTagNameNS(CAML_NS, 'animation')[0];
-    if (animNode) {
-      const kp = (animNode.getAttribute('keyPath') || 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
-      const valuesNode = animNode.getElementsByTagNameNS(CAML_NS, 'values')[0];
-      const vals: Array<{ x: number; y: number } | number> = [];
-      if (valuesNode) {
-        if (kp === 'position') {
-          const pts = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'CGPoint'));
-          for (const p of pts) {
-            const v = p.getAttribute('value') || '';
-            const parts = v.split(/[\s]+/).map((s) => Number(s));
-            const x = Math.round(Number.isFinite(parts[0]) ? parts[0] : 0);
-            const y = Math.round(Number.isFinite(parts[1]) ? parts[1] : 0);
-            vals.push({ x, y });
-          }
-        } else if (kp === 'position.x') {
-          const numEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'NSNumber'));
-          const intEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'integer'));
-          const merged = [...numEls, ...intEls];
-          for (const n of merged) {
-            const v = Number(n.getAttribute('value') || '');
-            vals.push(Math.round(Number.isFinite(v) ? v : 0));
-          }
-        } else if (kp === 'position.y') {
-          const numEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'NSNumber'));
-          const intEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'integer'));
-          const merged = [...numEls, ...intEls];
-          for (const n of merged) {
-            const v = Number(n.getAttribute('value') || '');
-            vals.push(Math.round(Number.isFinite(v) ? v : 0));
-          }
-        } else if (kp === 'transform.rotation.x' || kp === 'transform.rotation.y' || kp === 'transform.rotation.z') {
-          const reals = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'real'));
-          for (const r of reals) {
-            const rad = Number(r.getAttribute('value') || '');
-            const deg = ((Number.isFinite(rad) ? rad : 0) * 180) / Math.PI;
-            vals.push(deg);
-          }
-        }
-      }
-      const enabled = vals.length > 0;
-      const autorevAttr = animNode.getAttribute('autoreverses');
-      const autoreverses: 0 | 1 = (Number(autorevAttr) || 0) ? 1 : 0;
-      const durAttr = animNode.getAttribute('duration');
-      const durationSeconds = Number(durAttr);
-      const repCount = animNode.getAttribute('repeatCount');
-      const repDurAttr = animNode.getAttribute('repeatDuration');
-      const infinite: 0 | 1 = (repCount === 'inf' || repDurAttr === 'inf') ? 1 : 0;
-      const repeatDurationSeconds = !infinite && Number.isFinite(Number(repDurAttr || '')) ? Number(repDurAttr) : undefined;
-      parsedAnimations = {
-        enabled,
-        keyPath: kp,
-        autoreverses,
-        values: vals,
-        durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : undefined,
-        infinite,
-        repeatDurationSeconds: repeatDurationSeconds,
-      };
-    }
-  } catch {}
+  const parsedAnimations = parseCALayerAnimations(el);
 
   const sublayersEl = directChildByTagNS(el, 'sublayers');
   const sublayerNodes = sublayersEl
@@ -1360,10 +1297,10 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
   }
 
   const anim = (layer as any).animations as
-    | { enabled?: boolean; keyPath?: 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z'; autoreverses?: 0 | 1; values?: Array<{ x: number; y: number } | number>; durationSeconds?: number }
+    | { enabled?: boolean; keyPath?: KeyPath; autoreverses?: 0 | 1; values?: Array<{ x: number; y: number } | number>; durationSeconds?: number }
     | undefined;
   if (anim?.enabled && Array.isArray(anim.values) && anim.values.length > 0) {
-    const keyPath = (anim.keyPath ?? 'position') as 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z';
+    const keyPath = (anim.keyPath ?? 'position') as KeyPath;
     const animationsEl = doc.createElementNS(CAML_NS, 'animations');
     const a = doc.createElementNS(CAML_NS, 'animation');
     a.setAttribute('type', 'CAKeyframeAnimation');
@@ -1420,6 +1357,14 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
         realEl.setAttribute('value', String(rad));
         valuesEl.appendChild(realEl);
       }
+    } else if (keyPath === 'opacity') {
+      for (const v of anim.values as Array<any>) {
+        const n = Number(v);
+        const op = Number.isFinite(n) ? n : 1;
+        const realEl = doc.createElementNS(CAML_NS, 'real');
+        realEl.setAttribute('value', String(op));
+        valuesEl.appendChild(realEl);
+      }
     }
     a.appendChild(valuesEl);
     animationsEl.appendChild(a);
@@ -1427,4 +1372,78 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
   }
 
   return el;
+}
+
+function parseCALayerAnimations(el: Element): Animations | undefined {
+  // Parse per-layer keyframe animations
+  let parsedAnimations: Animations | undefined;
+  try {
+    const animationsEl = el.getElementsByTagNameNS(CAML_NS, 'animations')[0];
+    const animNode = animationsEl?.getElementsByTagNameNS(CAML_NS, 'animation')[0];
+    if (animNode) {
+      const kp = (animNode.getAttribute('keyPath') || 'position') as KeyPath;
+      const valuesNode = animNode.getElementsByTagNameNS(CAML_NS, 'values')[0];
+      const vals: Array<{ x: number; y: number } | number> = [];
+      if (valuesNode) {
+        if (kp === 'position') {
+          const pts = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'CGPoint'));
+          for (const p of pts) {
+            const v = p.getAttribute('value') || '';
+            const parts = v.split(/[\s]+/).map((s) => Number(s));
+            const x = Math.round(Number.isFinite(parts[0]) ? parts[0] : 0);
+            const y = Math.round(Number.isFinite(parts[1]) ? parts[1] : 0);
+            vals.push({ x, y });
+          }
+        } else if (kp === 'position.x') {
+          const numEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'NSNumber'));
+          const intEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'integer'));
+          const merged = [...numEls, ...intEls];
+          for (const n of merged) {
+            const v = Number(n.getAttribute('value') || '');
+            vals.push(Math.round(Number.isFinite(v) ? v : 0));
+          }
+        } else if (kp === 'position.y') {
+          const numEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'NSNumber'));
+          const intEls = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'integer'));
+          const merged = [...numEls, ...intEls];
+          for (const n of merged) {
+            const v = Number(n.getAttribute('value') || '');
+            vals.push(Math.round(Number.isFinite(v) ? v : 0));
+          }
+        } else if (kp === 'transform.rotation.x' || kp === 'transform.rotation.y' || kp === 'transform.rotation.z') {
+          const reals = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'real'));
+          for (const r of reals) {
+            const rad = Number(r.getAttribute('value') || '');
+            const deg = ((Number.isFinite(rad) ? rad : 0) * 180) / Math.PI;
+            vals.push(deg);
+          }
+        } else if (kp === 'opacity') {
+          const reals = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'real'));
+          for (const n of reals) {
+            const v = Number(n.getAttribute('value') || '');
+            vals.push(Number.isFinite(v) ? v : 1);
+          }
+        }
+      }
+      const enabled = vals.length > 0;
+      const autorevAttr = animNode.getAttribute('autoreverses');
+      const autoreverses: 0 | 1 = (Number(autorevAttr) || 0) ? 1 : 0;
+      const durAttr = animNode.getAttribute('duration');
+      const durationSeconds = Number(durAttr);
+      const repCount = animNode.getAttribute('repeatCount');
+      const repDurAttr = animNode.getAttribute('repeatDuration');
+      const infinite: 0 | 1 = (repCount === 'inf' || repDurAttr === 'inf') ? 1 : 0;
+      const repeatDurationSeconds = !infinite && Number.isFinite(Number(repDurAttr || '')) ? Number(repDurAttr) : undefined;
+      parsedAnimations = {
+        enabled,
+        keyPath: kp,
+        autoreverses,
+        values: vals,
+        durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : undefined,
+        infinite,
+        repeatDurationSeconds: repeatDurationSeconds,
+      };
+    }
+  } catch {} 
+  return parsedAnimations;
 }
