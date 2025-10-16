@@ -44,7 +44,7 @@ export default async function HomePage() {
                   {/* title */}
                   <h1 className="font-heading text-4xl min-[600px]:text-6xl lg:text-6xl font-bold text-foreground leading-tight mt-6 min-[600px]:mt-8">
                     <span className="block">The Open Source</span>
-                    <span className="block text-accent mt-1">CoreAnimation Editor.</span>
+                    <span className="block text-accent mt-1">CA Wallpaper Editor.</span>
                   </h1>
 
                   {/* description */}

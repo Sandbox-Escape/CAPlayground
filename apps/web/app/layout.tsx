@@ -16,13 +16,13 @@ const sourceSans = Source_Sans_3({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  title: "CAPlayground - Core Animation Editor",
+  title: "CAPlayground - CA Wallpaper Editor",
   description: "Create beautiful animated wallpapers for iOS and iPadOS on any desktop computer",
   verification: {
     google: "xNuTnO5iYYm2op2KXAClg0oYMmslpl35wOv-9RfySxU",
   },
   openGraph: {
-    title: "CAPlayground - Core Animation Editor",
+    title: "CAPlayground - CA Wallpaper Editor",
     description: "Create beautiful animated wallpapers for iOS and iPadOS on any desktop computer",
     type: "website",
     images: [
