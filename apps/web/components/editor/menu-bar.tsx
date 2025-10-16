@@ -344,13 +344,14 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
   return (
     <div className="w-full h-12 flex items-center justify-between px-3 border-b bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex items-center gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 px-2 border border-border">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {doc?.meta.name ?? "Project"}
-            </Button>
-          </DropdownMenuTrigger>
+        <div className="border rounded-md p-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 px-2">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                {doc?.meta.name ?? "Project"}
+              </Button>
+            </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
             <DropdownMenuItem
               className="cursor-pointer"
@@ -366,6 +367,7 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
         {/* Undo/Redo controls */}
         <div className="border rounded-md p-0.5">
           <Button
@@ -392,15 +394,13 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
         {/* Saving status + storage badge */}
         <div onMouseEnter={() => setShowManualSave(true)} onMouseLeave={() => setShowManualSave(false)}>
           {showManualSave ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 text-xs text-muted-foreground"
+            <button
+              className="text-xs px-2 py-0.5 rounded-full border border-muted-foreground/50 text-muted-foreground cursor-pointer hover:border-muted-foreground transition-colors"
               onClick={async () => { await flushPersist(); setShowManualSave(false); }}
               title="Save now"
             >
               Manual Save
-            </Button>
+            </button>
           ) : (
             <div className="flex items-center gap-2">
               <span

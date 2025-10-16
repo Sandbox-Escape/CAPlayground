@@ -30,7 +30,7 @@ export default async function HomePage() {
         <main className="">
           <section className="relative overflow-hidden min-h-[calc(100vh-4rem)] flex items-start">
             <div className="relative container mx-auto px-3 min-[600px]:px-4 lg:px-6 pt-16 pb-24 min-[600px]:pt-20 min-[600px]:pb-32">
-              <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center animate-in fade-in-0 slide-in-from-bottom-6 duration-2000 ease-out">
+              <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center animate-in fade-in-0 slide-in-from-bottom-6 duration-2000 ease-out fill-mode-forwards">
                 {/* Left: content */}
                 <div className="space-y-8 text-center lg:text-left">
                   {/* notification */}
