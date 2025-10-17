@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight } from "lucide-react";
+import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
@@ -50,6 +50,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Project { id: string; name: string; createdAt: string; width?: number; height?: number }
 
@@ -910,40 +918,89 @@ export default function ProjectsPage() {
             </div>
             <p className="text-muted-foreground">Create and manage your CoreAnimation projects stored locally on your device.</p>
             {/* Search & filters */}
-            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="lg:col-span-2">
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search projects by name..."
-                />
-              </div>
-              <div>
-                <Select value={dateFilter} onValueChange={(v) => setDateFilter(v as any)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Date" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All time</SelectItem>
-                    <SelectItem value="7">Last 7 days</SelectItem>
-                    <SelectItem value="30">Last 30 days</SelectItem>
-                    <SelectItem value="year">This year</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Sort" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="recent">Newest first</SelectItem>
-                    <SelectItem value="oldest">Oldest first</SelectItem>
-                    <SelectItem value="name-asc">Name A → Z</SelectItem>
-                    <SelectItem value="name-desc">Name Z → A</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="mt-4 flex gap-2 items-center">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search projects by name..."
+                className="max-w-md"
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Time Period</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => setDateFilter("all")}
+                    className={dateFilter === "all" ? "bg-accent" : ""}
+                  >
+                    {dateFilter === "all" && <Check className="h-4 w-4 mr-2" />}
+                    {dateFilter !== "all" && <span className="w-4 mr-2" />}
+                    All time
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDateFilter("7")}
+                    className={dateFilter === "7" ? "bg-accent" : ""}
+                  >
+                    {dateFilter === "7" && <Check className="h-4 w-4 mr-2" />}
+                    {dateFilter !== "7" && <span className="w-4 mr-2" />}
+                    Last 7 days
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDateFilter("30")}
+                    className={dateFilter === "30" ? "bg-accent" : ""}
+                  >
+                    {dateFilter === "30" && <Check className="h-4 w-4 mr-2" />}
+                    {dateFilter !== "30" && <span className="w-4 mr-2" />}
+                    Last 30 days
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setDateFilter("year")}
+                    className={dateFilter === "year" ? "bg-accent" : ""}
+                  >
+                    {dateFilter === "year" && <Check className="h-4 w-4 mr-2" />}
+                    {dateFilter !== "year" && <span className="w-4 mr-2" />}
+                    This year
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Sort By</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => setSortBy("recent")}
+                    className={sortBy === "recent" ? "bg-accent" : ""}
+                  >
+                    {sortBy === "recent" && <Check className="h-4 w-4 mr-2" />}
+                    {sortBy !== "recent" && <span className="w-4 mr-2" />}
+                    Newest first
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setSortBy("oldest")}
+                    className={sortBy === "oldest" ? "bg-accent" : ""}
+                  >
+                    {sortBy === "oldest" && <Check className="h-4 w-4 mr-2" />}
+                    {sortBy !== "oldest" && <span className="w-4 mr-2" />}
+                    Oldest first
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setSortBy("name-asc")}
+                    className={sortBy === "name-asc" ? "bg-accent" : ""}
+                  >
+                    {sortBy === "name-asc" && <Check className="h-4 w-4 mr-2" />}
+                    {sortBy !== "name-asc" && <span className="w-4 mr-2" />}
+                    Name A → Z
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setSortBy("name-desc")}
+                    className={sortBy === "name-desc" ? "bg-accent" : ""}
+                  >
+                    {sortBy === "name-desc" && <Check className="h-4 w-4 mr-2" />}
+                    {sortBy !== "name-desc" && <span className="w-4 mr-2" />}
+                    Name Z → A
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <div className="w-full md:w-auto flex gap-2">
