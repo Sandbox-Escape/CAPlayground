@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal } from "lucide-react";
+import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
@@ -1220,6 +1220,10 @@ export default function ProjectsPage() {
                           <p className="text-xs text-muted-foreground mt-1">
                             Created: {new Date(project.createdAt).toLocaleDateString()}
                           </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <HardDrive className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Device</span>
+                          </div>
                         </div>
                         {/* rename/delete */}
                         <div className="ml-2 flex items-center gap-1">
