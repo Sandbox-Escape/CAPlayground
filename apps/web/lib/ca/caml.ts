@@ -1365,6 +1365,15 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
         realEl.setAttribute('value', String(op));
         valuesEl.appendChild(realEl);
       }
+    } else if (keyPath === 'bounds') {
+      for (const ptRaw of anim.values as Array<any>) {
+        const pt = ptRaw || {};
+        const p = doc.createElementNS(CAML_NS, 'CGRect');
+        const w = Math.round(Number(pt?.w ?? 0));
+        const h = Math.round(Number(pt?.h ?? 0));
+        p.setAttribute('value', `0 0 ${w} ${h}`);
+        valuesEl.appendChild(p);
+      }
     }
     a.appendChild(valuesEl);
     animationsEl.appendChild(a);
@@ -1383,7 +1392,7 @@ function parseCALayerAnimations(el: Element): Animations | undefined {
     if (animNode) {
       const kp = (animNode.getAttribute('keyPath') || 'position') as KeyPath;
       const valuesNode = animNode.getElementsByTagNameNS(CAML_NS, 'values')[0];
-      const vals: Array<{ x: number; y: number } | number> = [];
+      const vals: Array<{ x: number; y: number } | { w: number; h: number } | number> = [];
       if (valuesNode) {
         if (kp === 'position') {
           const pts = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'CGPoint'));
@@ -1422,6 +1431,15 @@ function parseCALayerAnimations(el: Element): Animations | undefined {
           for (const n of reals) {
             const v = Number(n.getAttribute('value') || '');
             vals.push(Number.isFinite(v) ? v : 1);
+          }
+        } else if (kp === 'bounds') {
+          const rects = Array.from(valuesNode.getElementsByTagNameNS(CAML_NS, 'CGRect'));
+          for (const r of rects) {
+            const v = r.getAttribute('value') || '';
+            const parts = v.split(/[,\s]+/).map((s) => Number(s));
+            const w = Math.round(Number.isFinite(parts[2]) ? parts[2] : 0);
+            const h = Math.round(Number.isFinite(parts[3]) ? parts[3] : 0);
+            vals.push({ w, h });
           }
         }
       }

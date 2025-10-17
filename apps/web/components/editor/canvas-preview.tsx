@@ -540,6 +540,12 @@ export function CanvasPreview() {
       const b = Number(values[seg + 1] ?? a);
       const nop = lerp(a, b, f);
       (l as any).opacity = nop;
+    } else if (keyPath === 'bounds') {
+      const a: any = values[seg] || { w: (l as any).size?.w ?? 0, h: (l as any).size?.h ?? 0 };
+      const b: any = values[seg + 1] || a;
+      const nw = lerp(Number(a?.w ?? 0), Number(b?.w ?? 0), f);
+      const nh = lerp(Number(a?.h ?? 0), Number(b?.h ?? 0), f);
+      (l as any).size = { ...(l as any).size, w: nw, h: nh };
     }
   };
 
