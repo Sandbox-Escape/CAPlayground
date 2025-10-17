@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud } from "lucide-react";
+import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud, MoreVertical } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
@@ -62,6 +62,7 @@ import {
 interface Project { id: string; name: string; createdAt: string; width?: number; height?: number }
 
 export default function ProjectsPage() {
+  const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [storageFallback, setStorageFallback] = useState<boolean>(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -80,6 +81,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [uploadMode, setUploadMode] = useState(false);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const importTendiesInputRef = useRef<HTMLInputElement | null>(null);
@@ -97,6 +99,138 @@ export default function ProjectsPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const projectsArray = Array.isArray(projects) ? projects : [];
+  const [cloudProjects, setCloudProjects] = useState<any[]>([]);
+  const [loadingCloud, setLoadingCloud] = useState(false);
+  const [cloudFetched, setCloudFetched] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<Record<string, any>>({});
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({ current: 0, total: 0, projectName: '' });
+  const [syncResultOpen, setSyncResultOpen] = useState(false);
+  const [syncResultMessage, setSyncResultMessage] = useState('');
+  const [deleteOptionsOpen, setDeleteOptionsOpen] = useState(false);
+  const [deleteFromDevice, setDeleteFromDevice] = useState(true);
+  const [deleteFromCloud, setDeleteFromCloud] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<any>(null);
+
+  useEffect(() => {
+    const mode = searchParams?.get('mode');
+    if (mode === 'upload') {
+      setUploadMode(true);
+      setIsSelectMode(true);
+    }
+  }, [searchParams]);
+
+  const fetchCloudProjects = async () => {
+    try {
+      setLoadingCloud(true);
+      const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setCloudProjects([]);
+        return;
+      }
+
+      const response = await fetch('/api/drive/list', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+        
+        const cloudProjs = (data.files || []).map((file: any) => {
+          const projectEntry = Object.entries(syncData).find(
+            ([_, meta]: [string, any]) => meta.driveFileId === file.id
+          );
+          
+          const projectId = projectEntry ? projectEntry[0] : null;
+          const projectName = file.name.replace('.ca.zip', '');
+          
+          return {
+            id: projectId || file.id,
+            name: projectName,
+            driveFileId: file.id,
+            driveFileName: file.name,
+            createdAt: file.createdTime,
+            isCloudOnly: !projectId
+          };
+        });
+        
+        setCloudProjects(cloudProjs);
+        setCloudFetched(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch cloud projects:', error);
+    } finally {
+      setLoadingCloud(false);
+    }
+  };
+
+  const getMergedProjects = () => {
+    const merged: any[] = [];
+    const processedIds = new Set<string>();
+
+    projectsArray.forEach(localProj => {
+      const cloudProj = cloudProjects.find(cp => cp.id === localProj.id);
+      const sync = syncStatus[localProj.id];
+      
+      let storageLocation = 'Device';
+      let needsSync = false;
+      
+      if (cloudProj) {
+        storageLocation = 'Device and Cloud';
+        if (sync && sync.lastModifiedAt && sync.lastSyncedAt) {
+          needsSync = new Date(sync.lastModifiedAt) > new Date(sync.lastSyncedAt);
+        }
+      }
+      
+      merged.push({
+        ...localProj,
+        storageLocation,
+        needsSync,
+        driveFileId: sync?.driveFileId || cloudProj?.driveFileId,
+        isLocal: true
+      });
+      processedIds.add(localProj.id);
+    });
+
+    cloudProjects.forEach(cloudProj => {
+      if (!processedIds.has(cloudProj.id)) {
+        merged.push({
+          ...cloudProj,
+          storageLocation: 'Cloud',
+          needsSync: false,
+          isLocal: false,
+          isCloudOnly: true
+        });
+      }
+    });
+
+    return merged;
+  };
+
+  const [mergedProjects, setMergedProjects] = useState<any[]>([]);
+
+  useEffect(() => {
+    const merged = getMergedProjects();
+    setMergedProjects(merged);
+  }, [projectsArray.length, cloudProjects.length, Object.keys(syncStatus).length]);
+
+  useEffect(() => {
+    const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+    setSyncStatus(syncData);
+  }, [projects]);
+
+  useEffect(() => {
+    if (projects && projects.length > 0 && !loadingCloud && !cloudFetched) {
+      fetchCloudProjects();
+    }
+  }, [projects, cloudFetched]);
 
   useEffect(() => {
     (async () => {
@@ -416,7 +550,7 @@ export default function ProjectsPage() {
       }
     };
 
-    const arr = projectsArray.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt));
+    const arr = mergedProjects.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt));
 
     const sorted = [...arr].sort((a, b) => {
       if (sortBy === "recent") {
@@ -430,11 +564,11 @@ export default function ProjectsPage() {
       return 0;
     });
     return sorted;
-  }, [projectsArray, query, dateFilter, sortBy]);
+  }, [mergedProjects, query, dateFilter, sortBy]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [query, dateFilter, sortBy, projectsArray.length]);
+  }, [query, dateFilter, sortBy, mergedProjects.length]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -619,9 +753,71 @@ export default function ProjectsPage() {
     setVisibleCount(PAGE_SIZE);
   };
 
-  const confirmDelete = (id: string) => {
-    setPendingDeleteId(id);
-    setIsDeleteOpen(true);
+  const confirmDelete = (projectOrId: any) => {
+    const project = typeof projectOrId === 'string' 
+      ? mergedProjects.find(p => p.id === projectOrId)
+      : projectOrId;
+    
+    if (!project) return;
+
+    if (project.storageLocation === 'Device and Cloud') {
+      setProjectToDelete(project);
+      setDeleteFromDevice(true);
+      setDeleteFromCloud(false);
+      setDeleteOptionsOpen(true);
+    } else {
+      setPendingDeleteId(project.id);
+      setIsDeleteOpen(true);
+    }
+  };
+
+  const performDeleteWithOptions = async () => {
+    if (!projectToDelete) return;
+    
+    try {
+      if (deleteFromDevice) {
+        await deleteProject(projectToDelete.id);
+        const idbList = await listProjects();
+        setProjects(idbList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, width: p.width, height: p.height })));
+      }
+      
+      if (deleteFromCloud && projectToDelete.driveFileId) {
+        const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          try {
+            const response = await fetch('/api/drive/delete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({ fileId: projectToDelete.driveFileId })
+            });
+            
+            if (response.ok) {
+              const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+              delete syncData[projectToDelete.id];
+              localStorage.setItem('caplayground-sync', JSON.stringify(syncData));
+              
+              setCloudFetched(false);
+              fetchCloudProjects();
+            }
+          } catch (error) {
+            console.error('Failed to delete from cloud:', error);
+          }
+        }
+      }
+      
+      setDeleteOptionsOpen(false);
+      setProjectToDelete(null);
+      setDeleteFromDevice(true);
+      setDeleteFromCloud(false);
+    } catch (error) {
+      console.error('Delete error:', error);
+    }
   };
 
   const toggleSelectMode = () => {
@@ -636,6 +832,244 @@ export default function ProjectsPage() {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
+
+  const syncProjects = async (projectIds: string[]) => {
+    if (projectIds.length === 0) return;
+    
+    try {
+      setIsSyncing(true);
+      setSyncProgress({ current: 0, total: projectIds.length, projectName: '' });
+
+      const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+      const supabase = getSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setSyncResultMessage('Please sign in to sync to Google Drive');
+        setSyncResultOpen(true);
+        return;
+      }
+
+      const JSZip = (await import('jszip')).default;
+      const { getProject, listFiles } = await import('@/lib/storage');
+
+      const projectsData = [];
+      for (let i = 0; i < projectIds.length; i++) {
+        const projectId = projectIds[i];
+        try {
+          const project = await getProject(projectId);
+          if (!project) continue;
+
+          setSyncProgress({ current: i, total: projectIds.length, projectName: project.name });
+
+          const folderName = `${project.name}.ca`;
+          const files = await listFiles(projectId, folderName);
+          
+          const zip = new JSZip();
+          
+          zip.file('metadata.json', JSON.stringify({
+            id: project.id,
+            name: project.name,
+            width: project.width,
+            height: project.height,
+            createdAt: project.createdAt,
+            uploadedAt: new Date().toISOString()
+          }));
+
+          for (const file of files) {
+            const relativePath = file.path.replace(`${folderName}/`, '');
+            if (file.type === 'text' && typeof file.data === 'string') {
+              zip.file(relativePath, file.data);
+            } else if (file.type === 'blob' && file.data instanceof ArrayBuffer) {
+              zip.file(relativePath, file.data);
+            }
+          }
+
+          const zipBase64 = await zip.generateAsync({ type: 'base64' });
+          
+          projectsData.push({
+            id: projectId,
+            name: project.name,
+            zipData: zipBase64
+          });
+        } catch (error: any) {
+          console.error(`Failed to prepare project ${projectId}:`, error);
+        }
+      }
+
+      if (projectsData.length === 0) {
+        setSyncResultMessage('No projects could be prepared for sync');
+        setSyncResultOpen(true);
+        return;
+      }
+
+      setSyncProgress({ current: projectIds.length, total: projectIds.length, projectName: 'Uploading...' });
+
+      const response = await fetch('/api/drive/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ projects: projectsData })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error || 'Upload failed';
+        throw new Error(errorMsg);
+      }
+
+      if (data.results && Array.isArray(data.results)) {
+        const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+        const now = new Date().toISOString();
+        
+        let updatedCount = 0;
+        let createdCount = 0;
+        
+        for (const result of data.results) {
+          if (result.success && result.projectId && result.fileId) {
+            syncData[result.projectId] = {
+              driveFileId: result.fileId,
+              lastSyncedAt: now,
+              lastModifiedAt: now,
+              fileName: result.fileName
+            };
+            
+            if (result.updated) {
+              updatedCount++;
+            } else {
+              createdCount++;
+            }
+          }
+        }
+        localStorage.setItem('caplayground-sync', JSON.stringify(syncData));
+        
+        let message = '';
+        if (updatedCount > 0 && createdCount > 0) {
+          message = `Updated ${updatedCount} and uploaded ${createdCount} new project${createdCount > 1 ? 's' : ''} to Google Drive!`;
+        } else if (updatedCount > 0) {
+          message = `Updated ${updatedCount} project${updatedCount > 1 ? 's' : ''} in Google Drive!`;
+        } else if (createdCount > 0) {
+          message = `Uploaded ${createdCount} new project${createdCount > 1 ? 's' : ''} to Google Drive!`;
+        } else {
+          message = `Successfully synced ${data.uploaded} of ${data.total} project${data.total > 1 ? 's' : ''} to Google Drive!`;
+        }
+        
+        setSyncResultMessage(message);
+      } else {
+        setSyncResultMessage(`Successfully synced ${data.uploaded} of ${data.total} project${data.total > 1 ? 's' : ''} to Google Drive!`);
+      }
+      
+      setSyncResultOpen(true);
+      
+      setCloudFetched(false);
+      fetchCloudProjects();
+
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      setSyncResultMessage(`Failed to sync: ${error.message}`);
+      setSyncResultOpen(true);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleUploadToDrive = async () => {
+    await syncProjects(selectedIds);
+    setSelectedIds([]);
+    setIsSelectMode(false);
+    setUploadMode(false);
+  };
+
+  const syncSingleProject = async (projectId: string) => {
+    await syncProjects([projectId]);
+  };
+
+  const openProject = async (project: any) => {
+    if (project.isCloudOnly) {
+      try {
+        const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          setSyncResultMessage('Please sign in to access cloud projects');
+          setSyncResultOpen(true);
+          return;
+        }
+        
+        setIsSyncing(true);
+        setSyncProgress({ current: 0, total: 1, projectName: 'Downloading...' });
+        
+        const response = await fetch('/api/drive/download', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ fileId: project.driveFileId })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error);
+        
+        const JSZip = (await import('jszip')).default;
+        const { createProject, putTextFile, putBlobFile } = await import('@/lib/storage');
+        
+        const zipBuffer = Uint8Array.from(atob(data.zipData), c => c.charCodeAt(0));
+        const zip = await JSZip.loadAsync(zipBuffer);
+        const metadataFile = zip.file('metadata.json');
+        if (!metadataFile) throw new Error('Invalid project file');
+        
+        const metadataText = await metadataFile.async('text');
+        const metadata = JSON.parse(metadataText);
+        
+        await createProject({
+          id: metadata.id,
+          name: metadata.name,
+          width: metadata.width,
+          height: metadata.height,
+          createdAt: metadata.createdAt
+        });
+        
+        const folderName = `${metadata.name}.ca`;
+        await Promise.all(
+          Object.keys(zip.files).map(async (relativePath) => {
+            if (relativePath === 'metadata.json') return;
+            const file = zip.files[relativePath];
+            if (file.dir) return;
+            const fullPath = `${folderName}/${relativePath}`;
+            if (relativePath.endsWith('.caml') || relativePath.endsWith('.json')) {
+              const text = await file.async('text');
+              await putTextFile(metadata.id, fullPath, text);
+            } else {
+              const buffer = await file.async('arraybuffer');
+              await putBlobFile(metadata.id, fullPath, buffer);
+            }
+          })
+        );
+        
+        const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+        syncData[metadata.id] = {
+          driveFileId: project.driveFileId,
+          lastSyncedAt: new Date().toISOString(),
+          lastModifiedAt: new Date().toISOString()
+        };
+        localStorage.setItem('caplayground-sync', JSON.stringify(syncData));
+        
+        setIsSyncing(false);
+        router.push(`/editor/${metadata.id}`);
+      } catch (error: any) {
+        setIsSyncing(false);
+        setSyncResultMessage(`Failed to download: ${error.message}`);
+        setSyncResultOpen(true);
+      }
+    } else {
+      router.push(`/editor/${project.id}`);
+    }
   };
 
   const handleImportClick = () => setIsImportDialogOpen(true);
@@ -910,6 +1344,12 @@ export default function ProjectsPage() {
             </div>
             <div className="flex items-center gap-2">
               <h1 className="font-sfpro text-3xl md:text-4xl font-bold">Your Projects</h1>
+              {loadingCloud && (
+                <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 border border-blue-200 flex items-center gap-1">
+                  <span className="inline-block h-3 w-3 border-2 border-t-transparent border-blue-800 rounded-full animate-spin" />
+                  Loading cloud...
+                </span>
+              )}
               {storageFallback && (
                 <span className="text-[10px] md:text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">
                   Storage: IndexedDB fallback
@@ -1025,13 +1465,22 @@ export default function ProjectsPage() {
               <Upload className="h-4 w-4 mr-2" /> Import
             </Button>
             {isSelectMode && (
-              <Button
-                variant="destructive"
-                onClick={openBulkDelete}
-                disabled={selectedIds.length === 0}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Delete Selected ({selectedIds.length})
-              </Button>
+              <>
+                <Button
+                  variant="destructive"
+                  onClick={openBulkDelete}
+                  disabled={selectedIds.length === 0}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete ({selectedIds.length})
+                </Button>
+                <Button
+                  onClick={handleUploadToDrive}
+                  disabled={selectedIds.length === 0}
+                  variant="outline"
+                >
+                  <Cloud className="h-4 w-4 mr-2" /> Sync to Cloud ({selectedIds.length})
+                </Button>
+              </>
             )}
             <Button onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-2" /> New Project
@@ -1188,7 +1637,7 @@ export default function ProjectsPage() {
                       if (isSelectMode) {
                         toggleSelection(project.id);
                       } else {
-                        router.push(`/editor/${project.id}`);
+                        openProject(project);
                       }
                     }}
                   >
@@ -1210,8 +1659,11 @@ export default function ProjectsPage() {
                           className="flex-1 min-w-0 cursor-pointer select-none"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (isSelectMode) toggleSelection(project.id);
-                            else router.push(`/editor/${project.id}`);
+                            if (isSelectMode) {
+                              toggleSelection(project.id);
+                            } else {
+                              openProject(project);
+                            }
                           }}
                         >
                           <h3 className="font-medium block truncate" title={project.name}>
@@ -1221,34 +1673,66 @@ export default function ProjectsPage() {
                             Created: {new Date(project.createdAt).toLocaleDateString()}
                           </p>
                           <div className="flex items-center gap-1 mt-1">
-                            <HardDrive className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">Device</span>
+                            {project.storageLocation === 'Device and Cloud' ? (
+                              <>
+                                <div className="flex items-center gap-0.5">
+                                  <HardDrive className="h-3 w-3 text-muted-foreground" />
+                                  <Cloud className="h-3 w-3 text-muted-foreground" />
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {project.needsSync ? 'Out of sync' : 'Device and Cloud'}
+                                </span>
+                              </>
+                            ) : project.storageLocation === 'Cloud' ? (
+                              <>
+                                <Cloud className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Cloud</span>
+                              </>
+                            ) : (
+                              <>
+                                <HardDrive className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Device</span>
+                              </>
+                            )}
                           </div>
                         </div>
-                        {/* rename/delete */}
-                        <div className="ml-2 flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className={`h-8 w-8 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
-                            aria-label="Rename project"
-                            title="Rename"
-                            disabled={isSelectMode}
-                            onClick={(e) => { e.stopPropagation(); startEditing(project); }}
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className={`h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
-                            aria-label="Delete project"
-                            title="Delete"
-                            disabled={isSelectMode}
-                            onClick={(e) => { e.stopPropagation(); confirmDelete(project.id); }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        {/* actions menu */}
+                        <div className="ml-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className={`h-8 w-8 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
+                                disabled={isSelectMode}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditing(project); }}>
+                                <Edit3 className="h-4 w-4 mr-2" />
+                                Rename
+                              </DropdownMenuItem>
+                              {project.storageLocation !== 'Cloud' && (
+                                <DropdownMenuItem onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await syncSingleProject(project.id);
+                                }}>
+                                  <Cloud className="h-4 w-4 mr-2" />
+                                  Sync to Cloud
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={(e) => { e.stopPropagation(); confirmDelete(project); }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                       {/* Open Project */}
@@ -1256,7 +1740,7 @@ export default function ProjectsPage() {
                         <Button
                           className={`w-full justify-center ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
                           disabled={isSelectMode}
-                          onClick={(e) => { e.stopPropagation(); router.push(`/editor/${project.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); openProject(project); }}
                         >
                           Open Project <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
@@ -1395,6 +1879,114 @@ export default function ProjectsPage() {
                 disabled={selectedIds.length === 0}
               >
                 Delete Selected
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Sync Progress Dialog */}
+        <Dialog open={isSyncing} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+            <DialogHeader>
+              <DialogTitle>Syncing to Cloud</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {syncProgress.current} of {syncProgress.total} projects
+                  </span>
+                  <span className="font-medium">
+                    {Math.round((syncProgress.current / syncProgress.total) * 100)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+              {syncProgress.projectName && (
+                <p className="text-sm text-muted-foreground">
+                  {syncProgress.projectName}
+                </p>
+              )}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="h-4 w-4 border-2 border-t-transparent border-primary rounded-full animate-spin" />
+                <span>Please wait...</span>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Options Dialog */}
+        <Dialog open={deleteOptionsOpen} onOpenChange={setDeleteOptionsOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete "{projectToDelete?.name}"</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground">
+                This project is stored on both your device and Google Drive. Choose where to delete it from:
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="delete-device" 
+                    checked={deleteFromDevice}
+                    onCheckedChange={(checked) => setDeleteFromDevice(!!checked)}
+                  />
+                  <Label htmlFor="delete-device" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <HardDrive className="h-4 w-4" />
+                    Delete from Device
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="delete-cloud" 
+                    checked={deleteFromCloud}
+                    onCheckedChange={(checked) => setDeleteFromCloud(!!checked)}
+                  />
+                  <Label htmlFor="delete-cloud" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Cloud className="h-4 w-4" />
+                    Delete from Google Drive
+                  </Label>
+                </div>
+              </div>
+              {!deleteFromDevice && !deleteFromCloud && (
+                <p className="text-sm text-amber-600">
+                  Please select at least one location to delete from.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteOptionsOpen(false)}>
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={performDeleteWithOptions}
+                disabled={!deleteFromDevice && !deleteFromCloud}
+              >
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Sync Result Dialog */}
+        <AlertDialog open={syncResultOpen} onOpenChange={setSyncResultOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sync Complete</AlertDialogTitle>
+              <AlertDialogDescription>
+                {syncResultMessage}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setSyncResultOpen(false)}>
+                OK
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
