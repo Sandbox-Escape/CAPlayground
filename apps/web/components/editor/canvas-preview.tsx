@@ -535,6 +535,11 @@ export function CanvasPreview() {
       const b = Number(values[seg + 1] ?? a);
       const ny = lerp(a, b, f);
       (l as any).rotationY = ny;
+    } else if (keyPath === 'opacity') {
+      const a = Number(values[seg] ?? (l as any).opacity ?? 1);
+      const b = Number(values[seg + 1] ?? a);
+      const nop = lerp(a, b, f);
+      (l as any).opacity = nop;
     }
   };
 
