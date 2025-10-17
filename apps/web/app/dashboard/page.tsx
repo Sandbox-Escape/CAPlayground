@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Cloud } from "lucide-react"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { SubmitWallpaperDialog } from "@/app/wallpapers/SubmitWallpaperDialog"
 
@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const [username, setUsername] = useState<string>("")
   const [loading, setLoading] = useState(false)
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false)
+  const [hasGoogleLinked, setHasGoogleLinked] = useState(false)
+  const [checkingGoogle, setCheckingGoogle] = useState(true)
 
   useEffect(() => {
     let mounted = true
@@ -37,6 +39,18 @@ export default function DashboardPage() {
           .maybeSingle()
         if (mounted && profile?.username) setUsername(profile.username as string)
       } catch {}
+      
+      try {
+        const { data: identities } = await supabase.auth.getUserIdentities()
+        if (mounted && identities?.identities) {
+          const hasGoogle = identities.identities.some((identity: any) => identity.provider === 'google')
+          setHasGoogleLinked(hasGoogle)
+        }
+      } catch (e) {
+        console.error('Failed to check Google identity:', e)
+      } finally {
+        if (mounted) setCheckingGoogle(false)
+      }
     }
     load()
     return () => { mounted = false }
@@ -65,8 +79,46 @@ export default function DashboardPage() {
 
       <div className="w-full max-w-5xl">
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
-        <p className="mt-6 text-muted-foreground text-lg">More coming soon.</p>
+        <p className="mt-6 text-muted-foreground text-lg">Manage your projects and account settings.</p>
         <div className="mt-8 space-y-6">
+          {/* Cloud Projects */}
+          <Card className="border-border/80">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Cloud Projects
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Connect your Google Drive to sync and manage projects in the cloud.
+              </p>
+              {checkingGoogle ? (
+                <p className="text-sm text-muted-foreground">Checking Google connection...</p>
+              ) : hasGoogleLinked ? (
+                <div className="flex flex-wrap gap-3">
+                  <Button>
+                    <Cloud className="h-4 w-4 mr-2" />
+                    Connect Google Drive
+                  </Button>
+                  <Button variant="outline">View Cloud Projects</Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Button disabled className="opacity-50 cursor-not-allowed">
+                    <Cloud className="h-4 w-4 mr-2" />
+                    Connect Google Drive
+                  </Button>
+                  <p className="text-sm text-muted-foreground">
+                    ⚠️ You need to link your Google account first to use this feature.{" "}
+                    <Link href="/account" className="text-accent hover:underline font-medium">
+                      Go to Account Settings
+                    </Link>{" "}
+                    to link Google.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           {/* Submit Wallpaper (hidden) */}
           <div className="hidden">
             <Card className="border-border/80">
