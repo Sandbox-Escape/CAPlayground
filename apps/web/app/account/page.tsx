@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Link as LinkIcon, Unlink } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
 
 export default function AccountPage() {
   const supabase = getSupabaseBrowserClient()
@@ -20,8 +21,10 @@ export default function AccountPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<"menu" | "email" | "username" | "password">("menu")
+  const [mode, setMode] = useState<"menu" | "email" | "username" | "password" | "linked-accounts">("menu")
   const [canChangeEmail, setCanChangeEmail] = useState<boolean>(true)
+  const [linkedIdentities, setLinkedIdentities] = useState<any[]>([])
+  const [linkingProvider, setLinkingProvider] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -46,10 +49,74 @@ export default function AccountPage() {
           .maybeSingle()
         if (profile?.username) setUsername(profile.username)
       } catch {}
+      await loadIdentities()
       setLoading(false)
     }
     load()
   }, [supabase])
+
+  async function loadIdentities() {
+    try {
+      const { data, error } = await supabase.auth.getUserIdentities()
+      if (!error && data?.identities) {
+        setLinkedIdentities(data.identities)
+      }
+    } catch (e) {
+      console.error('Failed to load identities:', e)
+    }
+  }
+
+  async function linkProvider(provider: 'google' | 'github' | 'discord') {
+    setMessage(null)
+    setError(null)
+    setLinkingProvider(provider)
+    try {
+      const origin = window.location.origin
+      const { data, error } = await supabase.auth.linkIdentity({
+        provider,
+        options: {
+          redirectTo: `${origin}/account?linked=${provider}`
+        }
+      })
+      if (error) throw error
+    } catch (e: any) {
+      setError(e.message ?? `Failed to link ${provider} account`)
+      setLinkingProvider(null)
+    }
+  }
+
+  async function unlinkProvider(identity: any) {
+    const providerName = identity.provider
+    const confirmed = window.confirm(`Are you sure you want to unlink your ${providerName} account?`)
+    if (!confirmed) return
+    
+    setMessage(null)
+    setError(null)
+    
+    if (linkedIdentities.length <= 1) {
+      setError("You cannot unlink your only authentication method. Please link another provider first.")
+      return
+    }
+    
+    try {
+      const { error } = await supabase.auth.unlinkIdentity(identity)
+      if (error) throw error
+      setMessage(`Successfully unlinked ${providerName} account`)
+      await loadIdentities()
+    } catch (e: any) {
+      setError(e.message ?? `Failed to unlink ${providerName} account`)
+    }
+  }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const linked = params.get('linked')
+    if (linked) {
+      setMessage(`Successfully linked ${linked} account!`)
+      loadIdentities()
+      window.history.replaceState({}, '', '/account')
+    }
+  }, [])
 
   async function saveUsername() {
     if (!userId) return
@@ -170,6 +237,7 @@ export default function AccountPage() {
                 )}
                 <Button variant="outline" onClick={() => { setMode("username"); setMessage(null); setError(null); }}>Change Username</Button>
                 <Button variant="outline" onClick={() => { setMode("password"); setMessage(null); setError(null); }}>Change Password</Button>
+                <Button variant="outline" onClick={() => { setMode("linked-accounts"); setMessage(null); setError(null); }}>Linked Accounts</Button>
                 <div className="pt-2">
                   <p className="text-xs text-muted-foreground">Current email: {email || "(loading)"}</p>
                   {!canChangeEmail && (
@@ -242,6 +310,106 @@ export default function AccountPage() {
               <p className="text-sm text-muted-foreground">For security, password changes are done via email. We’ll send a reset link to your current address.</p>
               <div className="flex gap-2">
                 <Button onClick={sendResetEmail}>Send Reset Email</Button>
+                <Button variant="ghost" onClick={() => setMode("menu")}>Back</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {mode === "linked-accounts" && (
+          <Card className="border-border/80 shadow-none">
+            <CardHeader>
+              <CardTitle>Linked Accounts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Link multiple authentication providers to your account for easier sign-in.
+              </p>
+              
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium">Currently Linked</h3>
+                {linkedIdentities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No linked accounts found.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {linkedIdentities.map((identity) => (
+                      <div key={identity.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                            <span className="text-xs font-semibold uppercase">
+                              {identity.provider.charAt(0)}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium capitalize">{identity.provider}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {identity.identity_data?.email || 'No email'}
+                            </p>
+                          </div>
+                        </div>
+                        {linkedIdentities.length > 1 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => unlinkProvider(identity)}
+                          >
+                            <Unlink className="h-4 w-4 mr-1" />
+                            Unlink
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium">Link New Provider</h3>
+                <div className="grid gap-2">
+                  {!linkedIdentities.some(i => i.provider === 'google') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => linkProvider('google')}
+                      disabled={linkingProvider === 'google'}
+                      className="justify-start"
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      {linkingProvider === 'google' ? 'Linking...' : 'Link Google Account'}
+                    </Button>
+                  )}
+                  {!linkedIdentities.some(i => i.provider === 'github') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => linkProvider('github')}
+                      disabled={linkingProvider === 'github'}
+                      className="justify-start"
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      {linkingProvider === 'github' ? 'Linking...' : 'Link GitHub Account'}
+                    </Button>
+                  )}
+                  {!linkedIdentities.some(i => i.provider === 'discord') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => linkProvider('discord')}
+                      disabled={linkingProvider === 'discord'}
+                      className="justify-start"
+                    >
+                      <LinkIcon className="h-4 w-4 mr-2" />
+                      {linkingProvider === 'discord' ? 'Linking...' : 'Link Discord Account'}
+                    </Button>
+                  )}
+                </div>
+                {linkedIdentities.some(i => i.provider === 'google') && 
+                 linkedIdentities.some(i => i.provider === 'github') && 
+                 linkedIdentities.some(i => i.provider === 'discord') && (
+                  <p className="text-sm text-muted-foreground">All available providers are linked.</p>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2">
                 <Button variant="ghost" onClick={() => setMode("menu")}>Back</Button>
               </div>
             </CardContent>
