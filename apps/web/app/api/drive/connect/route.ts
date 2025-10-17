@@ -9,7 +9,6 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify user is authenticated
     const authHeader = request.headers.get('authorization');
     if (!authHeader) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -36,8 +35,6 @@ export async function GET(request: NextRequest) {
       GOOGLE_CLIENT_SECRET,
       `${origin}/api/drive/callback`
     );
-
-    // Pass user ID in state parameter to retrieve it in callback
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: [
@@ -45,7 +42,7 @@ export async function GET(request: NextRequest) {
         'https://www.googleapis.com/auth/userinfo.email'
       ],
       prompt: 'consent',
-      state: user.id // Pass user ID to callback
+      state: user.id
     });
 
     return NextResponse.json({ authUrl });

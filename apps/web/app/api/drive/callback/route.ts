@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const error = searchParams.get('error');
-    const state = searchParams.get('state'); // User ID passed from connect endpoint
+    const state = searchParams.get('state');
     const origin = request.headers.get('origin') || 'http://localhost:3000';
 
     if (error) {
@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/dashboard?error=no_token`);
     }
 
-    // Store tokens in Supabase user metadata
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -47,7 +46,6 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Get user by ID from state parameter
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(state);
     
     if (userError || !userData?.user) {
@@ -57,7 +55,6 @@ export async function GET(request: NextRequest) {
 
     const user = userData.user;
 
-    // Store tokens in user metadata
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...user.user_metadata,
