@@ -153,7 +153,7 @@ function DashboardContent() {
         </Link>
       </div>
 
-      <div className="w-full max-w-5xl">
+      <div className="w-full max-w-3xl">
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
         <p className="mt-6 text-muted-foreground text-lg">Manage your cloud projects and account settings.</p>
         <div className="mt-8 space-y-6">
