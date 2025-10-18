@@ -144,6 +144,9 @@ function DashboardContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 Cloud Projects
+                <span className="text-[10px] md:text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-normal">
+                  BETA
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">

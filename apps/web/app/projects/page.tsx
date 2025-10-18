@@ -93,6 +93,7 @@ function ProjectsContent() {
 
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<"all" | "7" | "30" | "year">("all");
+  const [locationFilter, setLocationFilter] = useState<"all" | "device" | "cloud" | "both">("all");
   const [sortBy, setSortBy] = useState<"recent" | "oldest" | "name-asc" | "name-desc">("recent");
   const PAGE_SIZE = 8;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -550,7 +551,15 @@ function ProjectsContent() {
       }
     };
 
-    const arr = mergedProjects.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt));
+    const matchesLocation = (location: string) => {
+      if (locationFilter === "all") return true;
+      if (locationFilter === "device") return location === "Device";
+      if (locationFilter === "cloud") return location === "Cloud";
+      if (locationFilter === "both") return location === "Device and Cloud";
+      return true;
+    };
+
+    const arr = mergedProjects.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt) && matchesLocation(p.storageLocation));
 
     const sorted = [...arr].sort((a, b) => {
       if (sortBy === "recent") {
@@ -564,11 +573,11 @@ function ProjectsContent() {
       return 0;
     });
     return sorted;
-  }, [mergedProjects, query, dateFilter, sortBy]);
+  }, [mergedProjects, query, dateFilter, locationFilter, sortBy]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [query, dateFilter, sortBy, mergedProjects.length]);
+  }, [query, dateFilter, locationFilter, sortBy, mergedProjects.length]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -1404,6 +1413,40 @@ function ProjectsContent() {
                     {dateFilter === "year" && <Check className="h-4 w-4 mr-2" />}
                     {dateFilter !== "year" && <span className="w-4 mr-2" />}
                     This year
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Storage Location</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("all")}
+                    className={locationFilter === "all" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "all" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "all" && <span className="w-4 mr-2" />}
+                    All locations
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("device")}
+                    className={locationFilter === "device" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "device" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "device" && <span className="w-4 mr-2" />}
+                    Device only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("cloud")}
+                    className={locationFilter === "cloud" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "cloud" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "cloud" && <span className="w-4 mr-2" />}
+                    Cloud only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("both")}
+                    className={locationFilter === "both" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "both" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "both" && <span className="w-4 mr-2" />}
+                    Device and Cloud
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel>Sort By</DropdownMenuLabel>
