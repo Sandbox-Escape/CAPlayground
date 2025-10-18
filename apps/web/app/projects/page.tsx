@@ -1725,7 +1725,7 @@ function ProjectsContent() {
                 return (
                   <Card 
                     key={project.id} 
-                    className={`relative ${isSelectMode && isSelected ? 'border-accent ring-2 ring-accent/30' : ''}`}
+                    className={`relative p-0 ${isSelectMode && isSelected ? 'border-accent ring-2 ring-accent/30' : ''}`}
                     onClick={() => {
                       if (isSelectMode) {
                         toggleSelection(project.id);
@@ -1734,7 +1734,7 @@ function ProjectsContent() {
                       }
                     }}
                   >
-                    <CardContent className="px-4 py-0">
+                    <CardContent className="p-4">
                       {/* Selection checkmark */}
                       {isSelectMode && (
                         <div className="absolute top-2 right-2 h-6 w-6 rounded-full border flex items-center justify-center bg-background/70">
