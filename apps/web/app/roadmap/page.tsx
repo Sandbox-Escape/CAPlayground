@@ -5,10 +5,14 @@ import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export default function RoadmapPage() {
   const [selectedMonth, setSelectedMonth] = useState<1 | 2>(2);
+
+  useEffect(() => {
+    document.title = "CAPlayground - Roadmap";
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -21,6 +21,10 @@ export default function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const { theme, setTheme } = useTheme();
 
+  useEffect(() => {
+    document.title = mode === "signin" ? "CAPlayground - Sign In" : "CAPlayground - Sign Up";
+  }, [mode]);
+
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [email, setEmail] = useState("");
   const [signupUsername, setSignupUsername] = useState("");

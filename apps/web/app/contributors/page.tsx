@@ -1,9 +1,14 @@
+import type { Metadata } from "next"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Github, Users, GitCommit, AlertCircle } from "lucide-react"
 import Link from "next/link"
+
+export const metadata: Metadata = {
+  title: "CAPlayground - Contributors",
+}
 
 interface GitHubContributor {
   id: number

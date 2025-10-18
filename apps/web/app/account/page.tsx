@@ -67,6 +67,10 @@ export default function AccountPage() {
   const [linkingProvider, setLinkingProvider] = useState<string | null>(null)
 
   useEffect(() => {
+    document.title = "CAPlayground - Account";
+  }, []);
+
+  useEffect(() => {
     let mounted = true
     async function load() {
       const { data } = await supabase.auth.getUser()

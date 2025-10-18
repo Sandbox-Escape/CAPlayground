@@ -40,6 +40,10 @@ function DashboardContent() {
   const [messageDialogVariant, setMessageDialogVariant] = useState<'success' | 'error'>('success')
 
   useEffect(() => {
+    document.title = "CAPlayground - Dashboard";
+  }, []);
+
+  useEffect(() => {
     const driveConnected = searchParams?.get('drive_connected');
     const error = searchParams?.get('error');
     

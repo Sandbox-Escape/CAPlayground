@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import type { Metadata } from "next"
 import { Navigation } from "@/components/navigation"
 import { Footer } from "@/components/footer"
 import { WallpapersGrid } from "./WallpapersGrid"
@@ -8,6 +9,10 @@ const WALLPAPERS_JSON_URL =
 
 // 30 min
 export const revalidate = 1800
+
+export const metadata: Metadata = {
+  title: "CAPlayground - Wallpapers",
+}
 
 interface WallpaperItem {
   id: string

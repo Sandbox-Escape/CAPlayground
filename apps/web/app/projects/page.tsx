@@ -65,6 +65,10 @@ function ProjectsContent() {
   const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [storageFallback, setStorageFallback] = useState<boolean>(false);
+
+  useEffect(() => {
+    document.title = "CAPlayground - Projects";
+  }, []);
   const [newProjectName, setNewProjectName] = useState("");
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");

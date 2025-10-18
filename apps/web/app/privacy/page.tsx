@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "next-themes"
@@ -7,6 +8,11 @@ import { ArrowLeft, Sun, Moon } from "lucide-react"
 
 export default function PrivacyPage() {
   const { theme, setTheme } = useTheme()
+  
+  useEffect(() => {
+    document.title = "CAPlayground - Privacy Policy";
+  }, []);
+
   return (
     <main className="relative min-h-screen px-4 py-10 sm:py-16 bg-gradient-to-b from-muted/40 to-transparent">
       {/* back */}
