@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,7 @@ import {
 
 interface Project { id: string; name: string; createdAt: string; width?: number; height?: number }
 
-export default function ProjectsPage() {
+function ProjectsContent() {
   const searchParams = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [storageFallback, setStorageFallback] = useState<boolean>(false);
@@ -2029,5 +2029,21 @@ export default function ProjectsPage() {
         </AlertDialog>
       </div>
     </div>
+  );
+}
+
+export default function ProjectsPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-2 sm:px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8 flex flex-col gap-4 pt-6">
+            <h1 className="font-sfpro text-3xl md:text-4xl font-bold">Loading...</h1>
+          </div>
+        </div>
+      </div>
+    }>
+      <ProjectsContent />
+    </Suspense>
   );
 }
