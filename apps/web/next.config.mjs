@@ -9,6 +9,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  env: {
+    TAILWIND_DISABLE_OXIDE: '1',
+  },
 }
 
 export default nextConfig
