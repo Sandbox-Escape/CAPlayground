@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -41,8 +40,8 @@ export async function GET(request: NextRequest) {
       }, { status: 403 });
     }
 
-    let accessToken = providerToken;
-    
+    let accessToken = providerToken as string;
+
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
         return NextResponse.json({ 
@@ -51,49 +50,59 @@ export async function GET(request: NextRequest) {
         }, { status: 403 });
       }
 
-      const oauth2Client = new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET
-      );
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-      
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      accessToken = credentials.access_token!;
-      
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: refreshToken as string
+        })
+      });
+      if (!refreshRes.ok) return NextResponse.json({ error: 'Failed to refresh token', needsConnection: true }, { status: 403 });
+      const refreshed = await refreshRes.json() as { access_token: string; expires_in?: number };
+      accessToken = refreshed.access_token;
+      const newExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: {
           ...userData?.user?.user_metadata,
           google_drive_access_token: accessToken,
-          google_drive_token_expiry: credentials.expiry_date
+          ...(newExpiry ? { google_drive_token_expiry: newExpiry } : {})
         }
       });
     }
 
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    const listFiles = async (q: string, fields: string, extra: Record<string,string> = {}) => {
+      const url = new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q', q);
+      url.searchParams.set('fields', fields);
+      url.searchParams.set('spaces', 'drive');
+      for (const [k,v] of Object.entries(extra)) url.searchParams.set(k, v);
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    };
 
-    const folderQuery = await drive.files.list({
-      q: "name='CAPlayground' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id, name)',
-      spaces: 'drive'
-    });
+    const folderQuery = await listFiles(
+      "name='CAPlayground' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      'files(id, name)'
+    );
 
-    if (!folderQuery.data.files || folderQuery.data.files.length === 0) {
+    if (!folderQuery.files || folderQuery.files.length === 0) {
       return NextResponse.json({ files: [] });
     }
 
-    const folderId = folderQuery.data.files[0].id!;
+    const folderId = folderQuery.files[0].id as string;
 
-    const filesQuery = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false and mimeType='application/zip'`,
-      fields: 'files(id, name, webViewLink, createdTime, size)',
-      orderBy: 'createdTime desc',
-      spaces: 'drive'
-    });
+    const filesQuery = await listFiles(
+      `'${folderId}' in parents and trashed=false and mimeType='application/zip'`,
+      'files(id, name, webViewLink, createdTime, size)',
+      { orderBy: 'createdTime desc' }
+    );
 
     return NextResponse.json({ 
-      files: filesQuery.data.files || []
+      files: filesQuery.files || []
     });
 
   } catch (error: any) {

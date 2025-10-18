@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -48,8 +47,7 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    let accessToken = providerToken;
-    
+    let accessToken = providerToken as string;
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
         return NextResponse.json({ 
@@ -57,36 +55,40 @@ export async function POST(request: NextRequest) {
           needsConnection: true
         }, { status: 403 });
       }
-
-      const oauth2Client = new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET
-      );
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-      
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      accessToken = credentials.access_token!;
-      
+      const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'refresh_token',
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: refreshToken as string
+        })
+      });
+      if (!refreshRes.ok) return NextResponse.json({ error: 'Failed to refresh token', needsConnection: true }, { status: 403 });
+      const refreshed = await refreshRes.json() as { access_token: string; expires_in?: number };
+      accessToken = refreshed.access_token;
+      const newExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: {
           ...userData?.user?.user_metadata,
           google_drive_access_token: accessToken,
-          google_drive_token_expiry: credentials.expiry_date
+          ...(newExpiry ? { google_drive_token_expiry: newExpiry } : {})
         }
       });
     }
 
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
-
-    const response = await drive.files.get(
-      { fileId, alt: 'media' },
-      { responseType: 'arraybuffer' }
-    );
-
-    const zipBuffer = Buffer.from(response.data as ArrayBuffer);
-    const zipBase64 = zipBuffer.toString('base64');
+    const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!fileRes.ok) {
+      return NextResponse.json({ error: 'Failed to download from Drive', details: await fileRes.text() }, { status: 500 });
+    }
+    const arrayBuffer = await fileRes.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    const zipBase64 = btoa(binary);
 
     return NextResponse.json({ 
       success: true,

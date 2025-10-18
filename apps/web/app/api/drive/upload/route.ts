@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
-import { Readable } from 'stream';
+ 
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -50,8 +49,8 @@ export async function POST(request: NextRequest) {
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
     
-    let accessToken = providerToken;
-    
+    let accessToken = providerToken as string;
+
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
         return NextResponse.json({ 
@@ -60,21 +59,34 @@ export async function POST(request: NextRequest) {
         }, { status: 403 });
       }
 
-      const oauth2Client = new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET
-      );
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-      
       try {
-        const { credentials } = await oauth2Client.refreshAccessToken();
-        accessToken = credentials.access_token!;
-        
+        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            refresh_token: refreshToken as string
+          })
+        });
+
+        if (!refreshRes.ok) {
+          const t = await refreshRes.text();
+          throw new Error(`Refresh failed: ${t}`);
+        }
+
+        const refreshed = await refreshRes.json() as { access_token: string; expires_in?: number };
+        accessToken = refreshed.access_token;
+
+        const newExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
         await supabaseAdmin.auth.admin.updateUserById(user.id, {
           user_metadata: {
             ...userData?.user?.user_metadata,
             google_drive_access_token: accessToken,
-            google_drive_token_expiry: credentials.expiry_date
+            ...(newExpiry ? { google_drive_token_expiry: newExpiry } : {})
           }
         });
       } catch (refreshError: any) {
@@ -86,101 +98,122 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({ access_token: accessToken });
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
+    const base64ToBytes = (b64: string): Uint8Array => {
+      const binary = atob(b64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    };
 
-    let folderId: string;
-    const folderQuery = await drive.files.list({
-      q: "name='CAPlayground' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id, name)',
-      spaces: 'drive'
-    });
-
-    if (folderQuery.data.files && folderQuery.data.files.length > 0) {
-      folderId = folderQuery.data.files[0].id!;
-    } else {
-      const folderMetadata = {
-        name: 'CAPlayground',
-        mimeType: 'application/vnd.google-apps.folder'
-      };
-      const folder = await drive.files.create({
-        requestBody: folderMetadata,
-        fields: 'id'
+    const driveList = async (q: string, fields: string) => {
+      const url = new URL('https://www.googleapis.com/drive/v3/files');
+      url.searchParams.set('q', q);
+      url.searchParams.set('fields', fields);
+      url.searchParams.set('spaces', 'drive');
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
-      folderId = folder.data.id!;
+      if (!res.ok) throw new Error(`Drive list failed: ${await res.text()}`);
+      return res.json();
+    };
+
+    let folderId: string | undefined;
+    const folderQuery = await driveList(
+      "name='CAPlayground' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      'files(id, name)'
+    );
+    if (folderQuery.files && folderQuery.files.length > 0) {
+      folderId = folderQuery.files[0].id as string;
+    } else {
+      const createFolderRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: 'CAPlayground',
+          mimeType: 'application/vnd.google-apps.folder'
+        })
+      });
+      if (!createFolderRes.ok) throw new Error(`Create folder failed: ${await createFolderRes.text()}`);
+      const folder = await createFolderRes.json();
+      folderId = folder.id as string;
     }
 
-    const results = [];
+    const startResumable = async (metadata: any, existingFileId?: string) => {
+      const baseUrl = existingFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=resumable`
+        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable';
+      const method = existingFileId ? 'PATCH' : 'POST';
+      const res = await fetch(baseUrl, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json; charset=UTF-8'
+        },
+        body: JSON.stringify(metadata)
+      });
+      if (!res.ok) throw new Error(`Start resumable upload failed: ${await res.text()}`);
+      const sessionUrl = res.headers.get('location');
+      if (!sessionUrl) throw new Error('No resumable session URL returned by Drive');
+      return sessionUrl;
+    };
+
+    const uploadToSession = async (sessionUrl: string, bytes: Uint8Array) => {
+      const res = await fetch(sessionUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Length': String(bytes.byteLength)
+        },
+        body: bytes
+      });
+      if (!res.ok) throw new Error(`Upload failed: ${await res.text()}`);
+      return res.json();
+    };
+
+    const results: Array<{ projectId: string; success: boolean; fileId?: string; fileName?: string; webViewLink?: string; updated?: boolean; error?: string }> = [];
     for (const project of projects) {
       try {
-        const zipBuffer = Buffer.from(project.zipData, 'base64');
-        const bufferStream = Readable.from(zipBuffer);
-        
-        const searchResponse = await drive.files.list({
-          q: `name='${project.name}.ca.zip' and '${folderId}' in parents and trashed=false`,
-          fields: 'files(id, name, modifiedTime)',
-          spaces: 'drive'
-        });
+        const bytes = base64ToBytes(project.zipData);
 
-        let uploadResponse;
-        let existingFileId = searchResponse.data.files && searchResponse.data.files.length > 0 
-          ? searchResponse.data.files[0].id 
-          : null;
+        const search = await driveList(
+          `name='${project.name}.ca.zip' and '${folderId}' in parents and trashed=false`,
+          'files(id, name, webViewLink)'
+        );
+        const existingFileId: string | undefined = (search.files && search.files.length > 0) ? search.files[0].id : undefined;
 
-        if (existingFileId) {
-          uploadResponse = await drive.files.update({
-            fileId: existingFileId,
-            media: {
-              mimeType: 'application/zip',
-              body: bufferStream
-            },
-            fields: 'id, name, webViewLink'
-          });
-        } else {
-          const fileMetadata = {
-            name: `${project.name}.ca.zip`,
-            parents: [folderId],
-            description: `CAPlayground project: ${project.name}`
-          };
+        const metadata: any = existingFileId ? {} : {
+          name: `${project.name}.ca.zip`,
+          parents: [folderId],
+          description: `CAPlayground project: ${project.name}`
+        };
 
-          uploadResponse = await drive.files.create({
-            requestBody: fileMetadata,
-            media: {
-              mimeType: 'application/zip',
-              body: bufferStream
-            },
-            fields: 'id, name, webViewLink'
-          });
-        }
+        const sessionUrl = await startResumable(metadata, existingFileId);
+        const uploaded = await uploadToSession(sessionUrl, bytes);
 
         results.push({
           projectId: project.id,
           success: true,
-          fileId: uploadResponse.data.id,
-          fileName: uploadResponse.data.name,
-          webViewLink: uploadResponse.data.webViewLink,
+          fileId: uploaded.id,
+          fileName: uploaded.name,
+          webViewLink: uploaded.webViewLink,
           updated: !!existingFileId
         });
-
       } catch (error: any) {
         console.error(`Failed to upload project ${project.id}:`, error);
         results.push({
           projectId: project.id,
           success: false,
-          error: error.message
+          error: error?.message || String(error)
         });
       }
     }
 
     const successCount = results.filter(r => r.success).length;
-    
-    return NextResponse.json({ 
-      success: true,
-      uploaded: successCount,
-      total: projects.length,
-      results
-    });
+    return NextResponse.json({ success: true, uploaded: successCount, total: projects.length, results });
 
   } catch (error: any) {
     console.error('Drive upload error:', error);

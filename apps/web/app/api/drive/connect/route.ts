@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
@@ -30,21 +29,21 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const origin = request.headers.get('origin') || 'http://localhost:3000';
-    
-    const oauth2Client = new google.auth.OAuth2(
-      GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET,
-      `${origin}/api/drive/callback`
-    );
-    const authUrl = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
+
+    const redirectUri = `${origin}/api/drive/callback`;
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
       scope: [
         'https://www.googleapis.com/auth/drive.file',
         'https://www.googleapis.com/auth/userinfo.email'
-      ],
+      ].join(' '),
+      access_type: 'offline',
       prompt: 'consent',
       state: user.id
     });
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
     return NextResponse.json({ authUrl });
 
@@ -56,3 +55,4 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+

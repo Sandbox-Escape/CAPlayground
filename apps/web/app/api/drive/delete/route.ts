@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -48,9 +47,8 @@ export async function POST(request: NextRequest) {
 
     const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
     const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
-    
-    let accessToken = providerToken;
-    
+    let accessToken = providerToken as string;
+
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
         return NextResponse.json({ 
@@ -58,22 +56,26 @@ export async function POST(request: NextRequest) {
           needsConnection: true
         }, { status: 403 });
       }
-
-      const oauth2Client = new google.auth.OAuth2(
-        GOOGLE_CLIENT_ID,
-        GOOGLE_CLIENT_SECRET
-      );
-      oauth2Client.setCredentials({ refresh_token: refreshToken });
-      
       try {
-        const { credentials } = await oauth2Client.refreshAccessToken();
-        accessToken = credentials.access_token!;
-        
+        const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: GOOGLE_CLIENT_SECRET,
+            refresh_token: refreshToken as string
+          })
+        });
+        if (!refreshRes.ok) throw new Error(await refreshRes.text());
+        const refreshed = await refreshRes.json() as { access_token: string; expires_in?: number };
+        accessToken = refreshed.access_token;
+        const newExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
         await supabaseAdmin.auth.admin.updateUserById(user.id, {
           user_metadata: {
             ...userData?.user?.user_metadata,
             google_drive_access_token: accessToken,
-            google_drive_token_expiry: credentials.expiry_date
+            ...(newExpiry ? { google_drive_token_expiry: newExpiry } : {})
           }
         });
       } catch (refreshError: any) {
@@ -85,18 +87,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET
-    );
-
-    oauth2Client.setCredentials({ access_token: accessToken });
-
-    const drive = google.drive({ version: 'v3', auth: oauth2Client });
-
-    await drive.files.delete({
-      fileId: fileId
+    const delRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` }
     });
+    if (!delRes.ok) {
+      return NextResponse.json({ error: 'Failed to delete from Drive', details: await delRes.text() }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
 
@@ -108,3 +105,4 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
+

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { google } from 'googleapis';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -28,14 +27,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/dashboard?error=no_user_id`);
     }
 
-    const oauth2Client = new google.auth.OAuth2(
-      GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET,
-      `${origin}/api/drive/callback`
-    );
-
-    const { tokens } = await oauth2Client.getToken(code);
-    
+    const redirectUri = `${origin}/api/drive/callback`;
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri
+      })
+    });
+    if (!tokenRes.ok) {
+      const details = await tokenRes.text();
+      return NextResponse.redirect(`${origin}/dashboard?error=${encodeURIComponent('token_exchange_failed')}&details=${encodeURIComponent(details)}`);
+    }
+    const tokens = await tokenRes.json() as { access_token?: string; refresh_token?: string; expires_in?: number };
     if (!tokens.access_token) {
       return NextResponse.redirect(`${origin}/dashboard?error=no_token`);
     }
@@ -56,12 +64,13 @@ export async function GET(request: NextRequest) {
 
     const user = userData.user;
 
+    const nowExpiry = tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined;
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
       user_metadata: {
         ...user.user_metadata,
         google_drive_access_token: tokens.access_token,
-        google_drive_refresh_token: tokens.refresh_token,
-        google_drive_token_expiry: tokens.expiry_date,
+        ...(tokens.refresh_token ? { google_drive_refresh_token: tokens.refresh_token } : {}),
+        ...(nowExpiry ? { google_drive_token_expiry: nowExpiry } : {}),
         google_drive_connected_at: new Date().toISOString()
       }
     });
