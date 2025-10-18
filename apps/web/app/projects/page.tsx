@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud, MoreVertical } from "lucide-react";
+import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud, MoreVertical, Smartphone } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
@@ -93,6 +93,7 @@ function ProjectsContent() {
 
   const [query, setQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<"all" | "7" | "30" | "year">("all");
+  const [locationFilter, setLocationFilter] = useState<"all" | "device" | "cloud" | "both">("all");
   const [sortBy, setSortBy] = useState<"recent" | "oldest" | "name-asc" | "name-desc">("recent");
   const PAGE_SIZE = 8;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -111,6 +112,9 @@ function ProjectsContent() {
   const [deleteFromDevice, setDeleteFromDevice] = useState(true);
   const [deleteFromCloud, setDeleteFromCloud] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [messageDialogTitle, setMessageDialogTitle] = useState('');
+  const [messageDialogContent, setMessageDialogContent] = useState('');
 
   useEffect(() => {
     const mode = searchParams?.get('mode');
@@ -550,7 +554,15 @@ function ProjectsContent() {
       }
     };
 
-    const arr = mergedProjects.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt));
+    const matchesLocation = (location: string) => {
+      if (locationFilter === "all") return true;
+      if (locationFilter === "device") return location === "Device";
+      if (locationFilter === "cloud") return location === "Cloud";
+      if (locationFilter === "both") return location === "Device and Cloud";
+      return true;
+    };
+
+    const arr = mergedProjects.filter((p) => matchesQuery(p.name) && inDateRange(p.createdAt) && matchesLocation(p.storageLocation));
 
     const sorted = [...arr].sort((a, b) => {
       if (sortBy === "recent") {
@@ -564,11 +576,11 @@ function ProjectsContent() {
       return 0;
     });
     return sorted;
-  }, [mergedProjects, query, dateFilter, sortBy]);
+  }, [mergedProjects, query, dateFilter, locationFilter, sortBy]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [query, dateFilter, sortBy, mergedProjects.length]);
+  }, [query, dateFilter, locationFilter, sortBy, mergedProjects.length]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -1101,7 +1113,9 @@ function ProjectsContent() {
             bundle = await unpackCA(file);
           } catch (fallbackErr) {
             if (msg.startsWith('UNSUPPORTED_ZIP_STRUCTURE')) {
-              alert('Zip not supported: expected both Background.ca and Floating.ca, and failed to read as a single .ca package.');
+              setMessageDialogTitle('Import Error');
+              setMessageDialogContent('Zip not supported: expected both Background.ca and Floating.ca, and failed to read as a single .ca package.');
+              setMessageDialogOpen(true);
               return;
             }
             throw err;
@@ -1295,19 +1309,67 @@ function ProjectsContent() {
       router.push(`/editor/${id}`);
     } catch (err) {
       console.error('Tendies import failed', err);
-      alert(`Failed to import tendies file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setMessageDialogTitle('Import Error');
+      setMessageDialogContent(`Failed to import tendies file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setMessageDialogOpen(true);
     } finally {
       if (importTendiesInputRef.current) importTendiesInputRef.current.value = '';
     }
   };
 
-  const openBulkDelete = () => setIsBulkDeleteOpen(true);
+  const openBulkDelete = () => {
+    setDeleteFromDevice(true);
+    setDeleteFromCloud(false);
+    setIsBulkDeleteOpen(true);
+  };
+  
   const performBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    if (!deleteFromDevice && !deleteFromCloud) return;
+    
     try {
-      await Promise.all(selectedIds.map((id) => deleteProject(id)));
-      const idbList = await listProjects();
-      setProjects(idbList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, width: p.width, height: p.height })));
+      const selectedProjects = mergedProjects.filter(p => selectedIds.includes(p.id));
+      
+      for (const project of selectedProjects) {
+        if (deleteFromDevice) {
+          await deleteProject(project.id);
+        }
+        
+        if (deleteFromCloud && project.driveFileId) {
+          const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+          const supabase = getSupabaseBrowserClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) continue;
+          
+          try {
+            const response = await fetch('/api/drive/delete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({ fileId: project.driveFileId })
+            });
+            
+            if (response.ok) {
+              const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+              delete syncData[project.id];
+              localStorage.setItem('caplayground-sync', JSON.stringify(syncData));
+            }
+          } catch (err) {
+            console.error(`Failed to delete ${project.name} from cloud:`, err);
+          }
+        }
+      }
+      
+      if (deleteFromDevice) {
+        const idbList = await listProjects();
+        setProjects(idbList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, width: p.width, height: p.height })));
+      }
+      
+      if (deleteFromCloud) {
+        await fetchCloudProjects();
+      }
     } finally {
       setSelectedIds([]);
       setIsSelectMode(false);
@@ -1406,6 +1468,40 @@ function ProjectsContent() {
                     This year
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Storage Location</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("all")}
+                    className={locationFilter === "all" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "all" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "all" && <span className="w-4 mr-2" />}
+                    All locations
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("device")}
+                    className={locationFilter === "device" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "device" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "device" && <span className="w-4 mr-2" />}
+                    Device only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("cloud")}
+                    className={locationFilter === "cloud" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "cloud" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "cloud" && <span className="w-4 mr-2" />}
+                    Cloud only
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setLocationFilter("both")}
+                    className={locationFilter === "both" ? "bg-accent" : ""}
+                  >
+                    {locationFilter === "both" && <Check className="h-4 w-4 mr-2" />}
+                    {locationFilter !== "both" && <span className="w-4 mr-2" />}
+                    Device and Cloud
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Sort By</DropdownMenuLabel>
                   <DropdownMenuItem
                     onClick={() => setSortBy("recent")}
@@ -1461,9 +1557,16 @@ function ProjectsContent() {
               onChange={handleImportTendiesChange}
               className="hidden"
             />
-            <Button variant="outline" onClick={handleImportClick}>
-              <Upload className="h-4 w-4 mr-2" /> Import
-            </Button>
+            {!isSelectMode && (
+              <>
+                <Button variant="outline" onClick={handleImportClick}>
+                  <Upload className="h-4 w-4 mr-2" /> Import
+                </Button>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> New Project
+                </Button>
+              </>
+            )}
             {isSelectMode && (
               <>
                 <Button
@@ -1482,9 +1585,6 @@ function ProjectsContent() {
                 </Button>
               </>
             )}
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> New Project
-            </Button>
           </div>
         </div>
 
@@ -1632,7 +1732,7 @@ function ProjectsContent() {
                 return (
                   <Card 
                     key={project.id} 
-                    className={`relative ${isSelectMode && isSelected ? 'border-accent ring-2 ring-accent/30' : ''}`}
+                    className={`relative p-0 ${isSelectMode && isSelected ? 'border-accent ring-2 ring-accent/30' : ''}`}
                     onClick={() => {
                       if (isSelectMode) {
                         toggleSelection(project.id);
@@ -1641,7 +1741,7 @@ function ProjectsContent() {
                       }
                     }}
                   >
-                    <CardContent className="px-4 py-0">
+                    <CardContent className="p-4">
                       {/* Selection checkmark */}
                       {isSelectMode && (
                         <div className="absolute top-2 right-2 h-6 w-6 rounded-full border flex items-center justify-center bg-background/70">
@@ -1680,18 +1780,18 @@ function ProjectsContent() {
                                   <Cloud className="h-3 w-3 text-muted-foreground" />
                                 </div>
                                 <span className="text-xs text-muted-foreground">
-                                  {project.needsSync ? 'Out of sync' : 'Device and Cloud'}
+                                  {project.needsSync ? 'Out of sync' : 'Saved to Device and Cloud'}
                                 </span>
                               </>
                             ) : project.storageLocation === 'Cloud' ? (
                               <>
                                 <Cloud className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Cloud</span>
+                                <span className="text-xs text-muted-foreground">Saved to Cloud</span>
                               </>
                             ) : (
                               <>
                                 <HardDrive className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Device</span>
+                                <span className="text-xs text-muted-foreground">Saved to Device</span>
                               </>
                             )}
                           </div>
@@ -1862,27 +1962,58 @@ function ProjectsContent() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Selected Delete Confirmation */}
-        <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {selectedIds.length} selected?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. These projects will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setIsBulkDeleteOpen(false)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        {/* Bulk Delete options */}
+        <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete {selectedIds.length} Selected Projects</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose where to delete the selected projects from:
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="bulk-delete-device" 
+                    checked={deleteFromDevice}
+                    onCheckedChange={(checked) => setDeleteFromDevice(!!checked)}
+                  />
+                  <Label htmlFor="bulk-delete-device" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Delete from Device
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="bulk-delete-cloud" 
+                    checked={deleteFromCloud}
+                    onCheckedChange={(checked) => setDeleteFromCloud(!!checked)}
+                  />
+                  <Label htmlFor="bulk-delete-cloud" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Cloud className="h-4 w-4" />
+                    Delete from Cloud
+                  </Label>
+                </div>
+              </div>
+              {!deleteFromDevice && !deleteFromCloud && (
+                <p className="text-sm text-amber-600">
+                  Please select at least one location to delete from.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
                 onClick={performBulkDelete}
-                disabled={selectedIds.length === 0}
+                disabled={!deleteFromDevice && !deleteFromCloud}
               >
-                Delete Selected
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Sync Progress Dialog */}
         <Dialog open={isSyncing} onOpenChange={() => {}}>
@@ -2027,6 +2158,25 @@ function ProjectsContent() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Message Dialog */}
+        <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{messageDialogTitle}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                {messageDialogContent}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setMessageDialogOpen(false)}>
+                OK
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -23,15 +23,29 @@ function DashboardContent() {
   const [driveConnected, setDriveConnected] = useState(false)
   const [deleteAllOpen, setDeleteAllOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false)
+  const [messageDialogTitle, setMessageDialogTitle] = useState('')
+  const [messageDialogContent, setMessageDialogContent] = useState('')
+  const [messageDialogVariant, setMessageDialogVariant] = useState<'success' | 'error'>('success')
 
   useEffect(() => {
     const driveConnected = searchParams?.get('drive_connected');
     const error = searchParams?.get('error');
     
     if (driveConnected === 'true') {
-      alert('Google Drive connected successfully! You can now upload projects.');
+      setMessageDialogTitle('Success');
+      setMessageDialogContent('Signed in to Google Drive successfully! You can now sync projects to the cloud.');
+      setMessageDialogVariant('success');
+      setMessageDialogOpen(true);
+      setDriveConnected(true);
+      setCheckingGoogle(false);
+      window.history.replaceState({}, '', '/dashboard');
     } else if (error) {
-      alert(`Drive connection error: ${error}`);
+      setMessageDialogTitle('Error');
+      setMessageDialogContent(`Failed to sign in to Google Drive: ${error}`);
+      setMessageDialogVariant('error');
+      setMessageDialogOpen(true);
+      window.history.replaceState({}, '', '/dashboard');
     }
   }, [searchParams]);
 
@@ -63,8 +77,13 @@ function DashboardContent() {
           setHasGoogleLinked(hasGoogle)
         }
         
-        const hasDriveToken = meta.google_drive_access_token
-        if (mounted) setDriveConnected(!!hasDriveToken)
+        try {
+          const driveRes = await fetch('/api/drive/auth')
+          const driveData = await driveRes.json()
+          if (mounted) setDriveConnected(driveData.connected === true)
+        } catch (e) {
+          console.error('Failed to check Drive connection:', e)
+        }
       } catch (e) {
         console.error('Failed to check Google identity:', e)
       } finally {
@@ -78,6 +97,7 @@ function DashboardContent() {
   async function handleSignOut() {
     setLoading(true)
     try {
+      await fetch('/api/auth/signout', { method: 'POST' })
       await supabase.auth.signOut()
       router.replace("/")
     } finally {
@@ -107,10 +127,16 @@ function DashboardContent() {
       localStorage.removeItem('caplayground-sync')
 
       setDeleteAllOpen(false)
-      alert('All cloud projects deleted successfully!')
+      setMessageDialogTitle('Success');
+      setMessageDialogContent('All cloud projects deleted successfully!');
+      setMessageDialogVariant('success');
+      setMessageDialogOpen(true);
       
     } catch (error: any) {
-      alert(`Failed to delete: ${error.message}`)
+      setMessageDialogTitle('Error');
+      setMessageDialogContent(`Failed to delete: ${error.message}`);
+      setMessageDialogVariant('error');
+      setMessageDialogOpen(true);
     } finally {
       setDeleting(false)
     }
@@ -127,7 +153,7 @@ function DashboardContent() {
         </Link>
       </div>
 
-      <div className="w-full max-w-5xl">
+      <div className="w-full max-w-3xl">
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">Welcome back{displayName ? `, ${displayName}` : ""}!</h1>
         <p className="mt-6 text-muted-foreground text-lg">Manage your cloud projects and account settings.</p>
         <div className="mt-8 space-y-6">
@@ -136,6 +162,9 @@ function DashboardContent() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 Cloud Projects
+                <span className="text-[10px] md:text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-normal">
+                  BETA
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -150,29 +179,51 @@ function DashboardContent() {
                     <Cloud className="h-5 w-5 text-green-600 dark:text-green-500" />
                     <div className="flex-1">
                       <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                        Google Drive Linked
+                        Signed in to Google Drive
                       </p>
                       <p className="text-xs text-green-700 dark:text-green-300">
                         Your projects can be synced to the cloud
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Link href="/projects" className="flex-1">
-                      <Button variant="outline" className="w-full">
-                        Manage Projects
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <Link href="/projects" className="flex-1"> 
+                        <Button variant="outline" className="w-full">
+                          Manage Projects
+                        </Button>
+                      </Link>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setDeleteAllOpen(true)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Delete All
                       </Button>
-                    </Link>
+                    </div>
                     <Button 
-                      variant="outline" 
-                      onClick={() => setDeleteAllOpen(true)}
-                      className="text-destructive hover:text-destructive"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/auth/signout', { method: 'POST' });
+                          setDriveConnected(false);
+                          setMessageDialogTitle('Success');
+                          setMessageDialogContent('Signed out from Google Drive successfully.');
+                          setMessageDialogVariant('success');
+                          setMessageDialogOpen(true);
+                        } catch (error) {
+                          console.error('Failed to sign out from Drive:', error);
+                        }
+                      }}
+                      className="w-full"
                     >
-                      Delete All
+                      <Cloud className="h-4 w-4 mr-2" />
+                      Sign out from Google Drive
                     </Button>
                   </div>
                 </div>
-              ) : hasGoogleLinked ? (
+              ) : (
                 <div className="space-y-3">
                   <Button onClick={async () => {
                     try {
@@ -181,31 +232,20 @@ function DashboardContent() {
                       if (data.authUrl) {
                         window.location.href = data.authUrl;
                       } else if (data.error) {
-                        alert(`Error: ${data.error}`);
+                        setMessageDialogTitle('Error');
+                        setMessageDialogContent(`Error: ${data.error}`);
+                        setMessageDialogVariant('error');
+                        setMessageDialogOpen(true);
                       }
                     } catch (error) {
-                      console.error('Failed to connect Drive:', error);
+                      console.error('Failed to sign in to Drive:', error);
                     }
                   }}>
                     <Cloud className="h-4 w-4 mr-2" />
-                    Connect Google Drive
+                    Sign in to Google Drive
                   </Button>
                   <p className="text-sm text-muted-foreground">
-                    Once connected, you can sync projects directly from the projects page.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Button disabled className="opacity-50 cursor-not-allowed">
-                    <Cloud className="h-4 w-4 mr-2" />
-                    Connect Google Drive
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    ⚠️ You need to link your Google account first to use this feature.{" "}
-                    <Link href="/account" className="text-accent hover:underline font-medium">
-                      Go to Account Settings
-                    </Link>{" "}
-                    to link Google.
+                    Once signed in, you can sync projects directly from the projects page.
                   </p>
                 </div>
               )}
@@ -291,6 +331,25 @@ function DashboardContent() {
               disabled={deleting}
             >
               {deleting ? 'Deleting...' : 'Delete All'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Message Dialog */}
+      <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{messageDialogTitle}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className={`text-sm ${messageDialogVariant === 'error' ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+              {messageDialogContent}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setMessageDialogOpen(false)}>
+              OK
             </Button>
           </DialogFooter>
         </DialogContent>
