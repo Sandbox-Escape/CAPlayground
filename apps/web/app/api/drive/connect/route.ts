@@ -5,7 +5,8 @@ export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {
-    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    const url = new URL(request.url);
+    const origin = `${url.protocol}//${url.host}`;
 
     const redirectUri = `${origin}/api/drive/callback`;
     const params = new URLSearchParams({

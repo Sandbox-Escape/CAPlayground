@@ -6,11 +6,12 @@ export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
+    const url = new URL(request.url);
+    const { searchParams } = url;
     const code = searchParams.get('code');
     const error = searchParams.get('error');
     const state = searchParams.get('state');
-    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    const origin = `${url.protocol}//${url.host}`;
 
     if (error) {
       return NextResponse.redirect(`${origin}/dashboard?error=${encodeURIComponent(error)}`);
@@ -77,7 +78,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Drive callback error:', error);
-    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    const url = new URL(request.url);
+    const origin = `${url.protocol}//${url.host}`;
     return NextResponse.redirect(`${origin}/dashboard?error=${encodeURIComponent(error.message)}`);
   }
 }
