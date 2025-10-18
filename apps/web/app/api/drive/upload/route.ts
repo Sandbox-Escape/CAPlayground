@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     if (!providerToken) {
       return NextResponse.json({ 
-        error: 'Google Drive not connected. Please connect your Google Drive first.',
+        error: 'Google Drive not connected. Please sign in to your Google Drive account first.',
         needsConnection: true
       }, { status: 403 });
     }
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
         return NextResponse.json({ 
-          error: 'Token expired and no refresh token available. Please reconnect Google Drive.',
+          error: 'Token expired and no refresh token available. Please sign in again to Google Drive.',
           needsConnection: true
         }, { status: 403 });
       }
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       } catch (refreshError: any) {
         console.error('Token refresh failed:', refreshError);
         return NextResponse.json({ 
-          error: 'Failed to refresh token. Please reconnect Google Drive.',
+          error: 'Failed to refresh token. Please sign in again to Google Drive.',
           needsConnection: true
         }, { status: 403 });
       }

@@ -112,6 +112,9 @@ function ProjectsContent() {
   const [deleteFromDevice, setDeleteFromDevice] = useState(true);
   const [deleteFromCloud, setDeleteFromCloud] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<any>(null);
+  const [messageDialogOpen, setMessageDialogOpen] = useState(false);
+  const [messageDialogTitle, setMessageDialogTitle] = useState('');
+  const [messageDialogContent, setMessageDialogContent] = useState('');
 
   useEffect(() => {
     const mode = searchParams?.get('mode');
@@ -1110,7 +1113,9 @@ function ProjectsContent() {
             bundle = await unpackCA(file);
           } catch (fallbackErr) {
             if (msg.startsWith('UNSUPPORTED_ZIP_STRUCTURE')) {
-              alert('Zip not supported: expected both Background.ca and Floating.ca, and failed to read as a single .ca package.');
+              setMessageDialogTitle('Import Error');
+              setMessageDialogContent('Zip not supported: expected both Background.ca and Floating.ca, and failed to read as a single .ca package.');
+              setMessageDialogOpen(true);
               return;
             }
             throw err;
@@ -1304,7 +1309,9 @@ function ProjectsContent() {
       router.push(`/editor/${id}`);
     } catch (err) {
       console.error('Tendies import failed', err);
-      alert(`Failed to import tendies file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setMessageDialogTitle('Import Error');
+      setMessageDialogContent(`Failed to import tendies file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setMessageDialogOpen(true);
     } finally {
       if (importTendiesInputRef.current) importTendiesInputRef.current.value = '';
     }
@@ -1773,18 +1780,18 @@ function ProjectsContent() {
                                   <Cloud className="h-3 w-3 text-muted-foreground" />
                                 </div>
                                 <span className="text-xs text-muted-foreground">
-                                  {project.needsSync ? 'Out of sync' : 'Device and Cloud'}
+                                  {project.needsSync ? 'Out of sync' : 'Saved to Device and Cloud'}
                                 </span>
                               </>
                             ) : project.storageLocation === 'Cloud' ? (
                               <>
                                 <Cloud className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Cloud</span>
+                                <span className="text-xs text-muted-foreground">Saved to Cloud</span>
                               </>
                             ) : (
                               <>
                                 <HardDrive className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Device</span>
+                                <span className="text-xs text-muted-foreground">Saved to Device</span>
                               </>
                             )}
                           </div>
@@ -2151,6 +2158,25 @@ function ProjectsContent() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Message Dialog */}
+        <Dialog open={messageDialogOpen} onOpenChange={setMessageDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{messageDialogTitle}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                {messageDialogContent}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setMessageDialogOpen(false)}>
+                OK
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

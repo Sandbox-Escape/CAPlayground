@@ -17,7 +17,7 @@ export async function getAndRefreshToken(request: NextRequest): Promise<TokenRef
 
   if (!providerToken) {
     return {
-      error: 'Google Drive not connected. Please connect your Google Drive first.',
+      error: 'Google Drive not connected. Please sign in to your Google Drive first.',
       needsConnection: true
     };
   }
@@ -29,7 +29,7 @@ export async function getAndRefreshToken(request: NextRequest): Promise<TokenRef
   if (tokenExpiry && Date.now() >= tokenExpiry) {
     if (!refreshToken) {
       return {
-        error: 'Token expired and no refresh token available. Please reconnect Google Drive.',
+        error: 'Token expired and no refresh token available. Please sign in again to Google Drive.',
         needsConnection: true
       };
     }
@@ -58,7 +58,7 @@ export async function getAndRefreshToken(request: NextRequest): Promise<TokenRef
     } catch (refreshError: any) {
       console.error('Token refresh failed:', refreshError);
       return {
-        error: 'Failed to refresh token. Please reconnect Google Drive.',
+        error: 'Failed to refresh token. Please sign in again to Google Drive.',
         needsConnection: true
       };
     }
