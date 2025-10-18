@@ -34,7 +34,7 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Privacy Policy</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Last Updated: 23rd September 2025</p>
+          <p className="mt-2 text-sm text-muted-foreground">Last Updated: 18th October 2025</p>
         </div>
 
         {/* Paper container */}
@@ -47,8 +47,10 @@ export default function PrivacyPage() {
           <h2 className="mt-12 text-3xl md:text-4xl font-semibold">1. Information We Collect</h2>
           <ul className="mt-6 list-disc pl-6 space-y-3">
             <li>
-              <strong>Local Projects</strong>: By default, your projects are stored locally on your device (e.g., browser
-              localStorage). We do not receive your local projects unless you explicitly upload or share them.
+              <strong>NO Local Projects</strong>: By default, your projects are stored locally on your device (using browser IndexedDB or OPFS). We do not receive your local projects unless you explicitly upload or share them.
+            </li>
+            <li>
+              <strong>Cloud Projects (Optional)</strong>: You can optionally use Cloud Projects by signing in to Google Drive. When you do this, your project files are stored in YOUR Google Drive account, not on CAPlayground servers. We do not receive, store, or have access to your Cloud Projects. All data is transmitted directly between your browser and Google Drive.
             </li>
             <li>
               <strong>Account Information</strong>: If you create an account via Supabase using email/password or Google OAuth,
@@ -61,7 +63,7 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Cookies & Local Storage</strong>: We use necessary cookies/localStorage for session, preferences, and product
-              features (e.g., first-time Terms acceptance: <code>caplayground-tos-accepted</code>).
+              features (e.g., first-time Terms acceptance: <code>caplayground-tos-accepted</code>). If you sign in to Google Drive, we store authentication tokens in secure, httpOnly cookies (<code>google_drive_access_token</code>, <code>google_drive_refresh_token</code>, <code>google_drive_token_expiry</code>) to maintain your Drive session and authenticate API requests on your behalf.
             </li>
           </ul>
 
@@ -102,14 +104,19 @@ export default function PrivacyPage() {
           <p className="mt-6 leading-7">
             We use Supabase for authentication and backend infrastructure. Supabase may process data necessary to provide those
             services and may maintain operational logs (e.g., auth events). We also use Databuddy for privacy conscious
-            analytics as described above. Refer to those providers’ documentation/policies for more details.
+            analytics as described above. Refer to those providers' documentation/policies for more details.
+          </p>
+          <p className="mt-4 leading-7">
+            <strong>Google Drive (Optional)</strong>: If you choose to use Cloud Projects, we integrate with Google Drive to store your project files. Your project files are stored in YOUR Google Drive account in a folder named "CAPlayground". We access only files created by CAPlayground. Your use of Google Drive is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">Google's Privacy Policy</a>. You can revoke CAPlayground's access to your Drive at any time through your Google account settings.
           </p>
 
           <h2 className="mt-12 text-3xl md:text-4xl font-semibold">5. Data Retention</h2>
           <ul className="mt-6 list-disc pl-6 space-y-3">
             <li>Local projects remain on your device until you remove them.</li>
+            <li>Cloud Projects remain in your Google Drive until you delete them. Deleting your CAPlayground account does NOT automatically delete your Cloud Projects from Google Drive. You must manually delete them using the "Delete All" feature in the dashboard or directly from Google Drive.</li>
             <li>Account data is retained while your account is active. If you delete your account, we delete associated account data
               except where retention is required by law.</li>
+            <li>Google Drive authentication cookies are cleared when you sign out from Google Drive or when they expire.</li>
           </ul>
 
           <h2 className="mt-12 text-3xl md:text-4xl font-semibold">6. Your Rights</h2>
