@@ -39,14 +39,12 @@ function DashboardContent() {
       setMessageDialogOpen(true);
       setDriveConnected(true);
       setCheckingGoogle(false);
-      // Clear URL parameters to prevent message from showing again on reload
       window.history.replaceState({}, '', '/dashboard');
     } else if (error) {
       setMessageDialogTitle('Error');
       setMessageDialogContent(`Failed to sign in to Google Drive: ${error}`);
       setMessageDialogVariant('error');
       setMessageDialogOpen(true);
-      // Clear URL parameters
       window.history.replaceState({}, '', '/dashboard');
     }
   }, [searchParams]);
@@ -225,7 +223,7 @@ function DashboardContent() {
                     </Button>
                   </div>
                 </div>
-              ) : hasGoogleLinked ? (
+              ) : (
                 <div className="space-y-3">
                   <Button onClick={async () => {
                     try {
@@ -248,20 +246,6 @@ function DashboardContent() {
                   </Button>
                   <p className="text-sm text-muted-foreground">
                     Once signed in, you can sync projects directly from the projects page.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Button disabled className="opacity-50 cursor-not-allowed">
-                    <Cloud className="h-4 w-4 mr-2" />
-                    Sign in to Google Drive
-                  </Button>
-                  <p className="text-sm text-muted-foreground">
-                    ⚠️ You need to link your Google account first to use this feature.{" "}
-                    <Link href="/account" className="text-accent hover:underline font-medium">
-                      Go to Account Settings
-                    </Link>{" "}
-                    to link Google.
                   </p>
                 </div>
               )}
