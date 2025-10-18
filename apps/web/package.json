@@ -6,7 +6,8 @@
     "build": "TAILWIND_DISABLE_OXIDE=1 TAILWIND_USE_OXIDE=0 next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "postinstall": "node -e \"try{require('fs').rmSync('node_modules/@tailwindcss/oxide',{recursive:true,force:true})}catch(e){}\""
   },
   "dependencies": {
     "@databuddy/sdk": "^2.1.75",
