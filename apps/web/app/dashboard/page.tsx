@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,7 @@ import { ArrowLeft, Cloud } from "lucide-react"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { SubmitWallpaperDialog } from "@/app/wallpapers/SubmitWallpaperDialog"
 
-export default function DashboardPage() {
+function DashboardContent() {
   const supabase = getSupabaseBrowserClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -296,5 +296,19 @@ export default function DashboardPage() {
         </DialogContent>
       </Dialog>
     </main>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen px-4 py-20 flex items-start justify-center">
+        <div className="w-full max-w-5xl">
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight">Loading...</h1>
+        </div>
+      </main>
+    }>
+      <DashboardContent />
+    </Suspense>
   )
 }
