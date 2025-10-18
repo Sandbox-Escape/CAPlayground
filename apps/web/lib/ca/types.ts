@@ -152,13 +152,21 @@ export type CAProjectBundle = {
   wallpaperParallaxGroups?: GyroParallaxDictionary[];
 };
 
-export type KeyPath = 'position' | 'position.x' | 'position.y' | 'transform.rotation.x' | 'transform.rotation.y' | 'transform.rotation.z' | 'opacity';
+export type KeyPath =
+  | 'position'
+  | 'position.x'
+  | 'position.y'
+  | 'transform.rotation.x'
+  | 'transform.rotation.y'
+  | 'transform.rotation.z'
+  | 'opacity'
+  | 'bounds';
 
 export type Animations = {
   enabled?: boolean;
   keyPath?: KeyPath;
   autoreverses?: 0 | 1;
-  values?: Array<Vec2 | number>;
+  values?: Array<Vec2 | Size | number>;
   durationSeconds?: number;
   infinite?: 0 | 1;
   repeatDurationSeconds?: number;

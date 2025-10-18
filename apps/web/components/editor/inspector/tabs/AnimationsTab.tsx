@@ -45,7 +45,7 @@ export function AnimationsTab({
                     const enabled = !!checked;
                     const currentAnim = (selectedBase as any)?.animations || {};
                     const kp = (currentAnim.keyPath ?? 'position') as KeyPath;
-                    let values: Array<{ x: number; y: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
+                    let values: Array<{ x: number; y: number } | { w: number; h: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
                     if (enabled && values.length === 0) {
                       if (kp === 'position') {
                         values = [{ x: (selectedBase as any).position?.x ?? 0, y: (selectedBase as any).position?.y ?? 0 }];
@@ -57,6 +57,8 @@ export function AnimationsTab({
                         values = [Number((selectedBase as any)?.rotation ?? 0)];
                       } else if (kp === 'opacity') {
                         values = [Number((selectedBase as any)?.opacity ?? 1)];
+                      } else if (kp === 'bounds') {
+                        values = [{ w: (selectedBase as any).size?.w ?? 0, h: (selectedBase as any).size?.h ?? 0 }];
                       } else {
                         values = [0];
                       }
@@ -79,7 +81,7 @@ export function AnimationsTab({
               const enabled = !!checked;
               const currentAnim = (selectedBase as any)?.animations || {};
               const kp = (currentAnim.keyPath ?? 'position') as KeyPath;
-              let values: Array<{ x: number; y: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
+              let values: Array<{ x: number; y: number } | { w: number; h: number } | number> = Array.isArray(currentAnim.values) ? [...currentAnim.values] : [];
               if (enabled && values.length === 0) {
                 if (kp === 'position') {
                   values = [{ x: (selectedBase as any).position?.x ?? 0, y: (selectedBase as any).position?.y ?? 0 }];
@@ -91,6 +93,8 @@ export function AnimationsTab({
                   values = [Number((selectedBase as any)?.rotation ?? 0)];
                 } else if (kp === 'opacity') {
                   values = [Number((selectedBase as any)?.opacity ?? 1)];
+                } else if (kp === 'bounds') {
+                  values = [{ w: (selectedBase as any).size?.w ?? 0, h: (selectedBase as any).size?.h ?? 0 }];
                 } else {
                   values = [0];
                 }
@@ -109,7 +113,7 @@ export function AnimationsTab({
               const current = (selectedBase as any)?.animations || {};
               const kp = v as KeyPath;
               const prevVals = (current.values || []) as Array<{ x: number; y: number } | number>;
-              let values: Array<{ x: number; y: number } | number> = [];
+              let values: Array<{ x: number; y: number } | { w: number; h: number } | number> = [];
               if (kp === 'position') {
                 values = prevVals.map((pv: any) => {
                   if (typeof pv === 'number') {
@@ -126,6 +130,10 @@ export function AnimationsTab({
                 values = prevVals.map((pv: any) => typeof pv === 'number' ? pv : fallback);
               } else if (kp === 'opacity') {
                 values = prevVals.map((pv: any) => Number((selectedBase as any)?.opacity ?? 1));
+              } else if (kp === 'bounds') {
+                values = prevVals.map((pv: any) => {
+                  return { w: (selectedBase as any).size?.w ?? 0, h: (selectedBase as any).size?.h ?? 0 };
+                });
               }
               updateLayer(selectedBase!.id, { animations: { ...current, keyPath: kp, values } } as any);
             }}
@@ -142,6 +150,7 @@ export function AnimationsTab({
               <SelectItem value="transform.rotation.y">transform.rotation.y</SelectItem>
               <SelectItem value="transform.rotation.z">transform.rotation.z</SelectItem>
               <SelectItem value="opacity">opacity</SelectItem>
+              <SelectItem value="bounds">bounds</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -227,6 +236,7 @@ export function AnimationsTab({
               if (kp.startsWith('transform.rotation')) return 'Values (Degrees)';
               if (kp === 'position') return 'Values (CGPoint)';
               if (kp === 'opacity') return 'Values (Percentage)';
+              if (kp === 'bounds') return 'Values (CGRect)';
               return 'Values (Number)';
             })()}
           </Label>
@@ -250,6 +260,8 @@ export function AnimationsTab({
                 values.push(0);
               } else if (kp === 'opacity') {
                 values.push(Number((selectedBase as any)?.opacity ?? 1));
+              } else if (kp === 'bounds') {
+                values.push({ w: (selectedBase as any).size?.w ?? 0, h: (selectedBase as any).size?.h ?? 0 });
               }
               updateLayer(selectedBase!.id, { animations: { ...current, values } } as any);
             }}
@@ -262,42 +274,54 @@ export function AnimationsTab({
           {(() => {
             const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
             const values = (((selectedBase as any)?.animations?.values || []) as Array<any>);
-            if (kp === 'position') {
+            if (kp === 'position' || kp === 'bounds') {
               return (
                 <>
                   {values.map((pt, idx) => (
                     <div key={idx} className="grid grid-cols-3 gap-2 items-end">
                       <div className="space-y-1">
-                        <Label className="text-xs">X</Label>
+                        <Label className="text-xs">{kp === 'position' ? 'X' : 'Width'}</Label>
                         <Input
                           type="number"
                           step="1"
                           className="h-8"
-                          value={Number.isFinite(pt?.x) ? String(Math.round(pt.x)) : ''}
+                          value={kp === 'position'
+                            ? Number.isFinite(pt?.x) ? String(Math.round(pt.x)) : ''
+                            : Number.isFinite(pt?.w) ? String(Math.round(pt.w)) : ''}
                           onChange={(e) => {
                             const v = e.target.value;
                             const current = (selectedBase as any)?.animations || {};
                             const arr = [...(current.values || [])];
                             const n = Number(v);
-                            arr[idx] = { x: Number.isFinite(n) ? n : 0, y: arr[idx]?.y ?? 0 };
+                            if (kp === 'position') {
+                              arr[idx] = { x: Number.isFinite(n) ? n : 0, y: arr[idx]?.y ?? 0 };
+                            } else {
+                              arr[idx] = { w: Number.isFinite(n) ? n : 0, h: arr[idx]?.h ?? 0 };
+                            }
                             updateLayer(selectedBase!.id, { animations: { ...current, values: arr } } as any);
                           }}
                           disabled={!animEnabled}
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-xs">Y</Label>
+                        <Label className="text-xs">{kp === 'position' ? 'Y' : 'Height'}</Label>
                         <Input
                           type="number"
                           step="1"
                           className="h-8"
-                          value={Number.isFinite(pt?.y) ? String(Math.round(pt.y)) : ''}
+                          value={kp === 'position'
+                            ? Number.isFinite(pt?.y) ? String(Math.round(pt.y)) : ''
+                            : Number.isFinite(pt?.h) ? String(Math.round(pt.h)) : ''}
                           onChange={(e) => {
                             const v = e.target.value;
                             const current = (selectedBase as any)?.animations || {};
                             const arr = [...(current.values || [])];
                             const n = Number(v);
-                            arr[idx] = { x: arr[idx]?.x ?? 0, y: Number.isFinite(n) ? n : 0 };
+                            if (kp === 'position') {
+                              arr[idx] = { x: arr[idx]?.x ?? 0, y: Number.isFinite(n) ? n : 0 };
+                            } else {
+                              arr[idx] = { w: arr[idx]?.w ?? 0, h: Number.isFinite(n) ? n : 0 };
+                            }
                             updateLayer(selectedBase!.id, { animations: { ...current, values: arr } } as any);
                           }}
                           disabled={!animEnabled}
