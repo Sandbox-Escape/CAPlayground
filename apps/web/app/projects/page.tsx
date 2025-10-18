@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud, MoreVertical } from "lucide-react";
+import { Trash2, Edit3, Plus, Folder, ArrowLeft, Check, Upload, ArrowRight, SlidersHorizontal, HardDrive, Cloud, MoreVertical, Smartphone } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
@@ -1310,13 +1310,59 @@ function ProjectsContent() {
     }
   };
 
-  const openBulkDelete = () => setIsBulkDeleteOpen(true);
+  const openBulkDelete = () => {
+    setDeleteFromDevice(true);
+    setDeleteFromCloud(false);
+    setIsBulkDeleteOpen(true);
+  };
+  
   const performBulkDelete = async () => {
     if (selectedIds.length === 0) return;
+    if (!deleteFromDevice && !deleteFromCloud) return;
+    
     try {
-      await Promise.all(selectedIds.map((id) => deleteProject(id)));
-      const idbList = await listProjects();
-      setProjects(idbList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, width: p.width, height: p.height })));
+      const selectedProjects = mergedProjects.filter(p => selectedIds.includes(p.id));
+      
+      for (const project of selectedProjects) {
+        if (deleteFromDevice) {
+          await deleteProject(project.id);
+        }
+        
+        if (deleteFromCloud && project.driveFileId) {
+          const { getSupabaseBrowserClient } = await import("@/lib/supabase");
+          const supabase = getSupabaseBrowserClient();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) continue;
+          
+          try {
+            const response = await fetch('/api/drive/delete', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({ fileId: project.driveFileId })
+            });
+            
+            if (response.ok) {
+              const syncData = JSON.parse(localStorage.getItem('caplayground-sync') || '{}');
+              delete syncData[project.id];
+              localStorage.setItem('caplayground-sync', JSON.stringify(syncData));
+            }
+          } catch (err) {
+            console.error(`Failed to delete ${project.name} from cloud:`, err);
+          }
+        }
+      }
+      
+      if (deleteFromDevice) {
+        const idbList = await listProjects();
+        setProjects(idbList.map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, width: p.width, height: p.height })));
+      }
+      
+      if (deleteFromCloud) {
+        await fetchCloudProjects();
+      }
     } finally {
       setSelectedIds([]);
       setIsSelectMode(false);
@@ -1504,9 +1550,16 @@ function ProjectsContent() {
               onChange={handleImportTendiesChange}
               className="hidden"
             />
-            <Button variant="outline" onClick={handleImportClick}>
-              <Upload className="h-4 w-4 mr-2" /> Import
-            </Button>
+            {!isSelectMode && (
+              <>
+                <Button variant="outline" onClick={handleImportClick}>
+                  <Upload className="h-4 w-4 mr-2" /> Import
+                </Button>
+                <Button onClick={() => setIsCreateOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" /> New Project
+                </Button>
+              </>
+            )}
             {isSelectMode && (
               <>
                 <Button
@@ -1525,9 +1578,6 @@ function ProjectsContent() {
                 </Button>
               </>
             )}
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> New Project
-            </Button>
           </div>
         </div>
 
@@ -1905,27 +1955,58 @@ function ProjectsContent() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Selected Delete Confirmation */}
-        <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete {selectedIds.length} selected?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. These projects will be permanently deleted.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setIsBulkDeleteOpen(false)}>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+        {/* Bulk Delete options */}
+        <Dialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete {selectedIds.length} Selected Projects</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Choose where to delete the selected projects from:
+              </p>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="bulk-delete-device" 
+                    checked={deleteFromDevice}
+                    onCheckedChange={(checked) => setDeleteFromDevice(!!checked)}
+                  />
+                  <Label htmlFor="bulk-delete-device" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Delete from Device
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="bulk-delete-cloud" 
+                    checked={deleteFromCloud}
+                    onCheckedChange={(checked) => setDeleteFromCloud(!!checked)}
+                  />
+                  <Label htmlFor="bulk-delete-cloud" className="text-sm font-medium cursor-pointer flex items-center gap-2">
+                    <Cloud className="h-4 w-4" />
+                    Delete from Cloud
+                  </Label>
+                </div>
+              </div>
+              {!deleteFromDevice && !deleteFromCloud && (
+                <p className="text-sm text-amber-600">
+                  Please select at least one location to delete from.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsBulkDeleteOpen(false)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
                 onClick={performBulkDelete}
-                disabled={selectedIds.length === 0}
+                disabled={!deleteFromDevice && !deleteFromCloud}
               >
-                Delete Selected
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Sync Progress Dialog */}
         <Dialog open={isSyncing} onOpenChange={() => {}}>
