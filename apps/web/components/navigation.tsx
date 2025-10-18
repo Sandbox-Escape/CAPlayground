@@ -143,6 +143,7 @@ export function Navigation() {
                   <DropdownMenuItem
                     onClick={async () => {
                       const supabase = getSupabaseBrowserClient()
+                      await fetch('/api/auth/signout', { method: 'POST' })
                       await supabase.auth.signOut()
                       window.location.href = "/"
                     }}

@@ -217,6 +217,7 @@ export default function AuthSuccessPage() {
                   variant="destructive"
                   onClick={async () => {
                     try {
+                      await fetch('/api/auth/signout', { method: 'POST' })
                       await supabase.auth.signOut()
                     } finally {
                       window.location.href = "/signin"

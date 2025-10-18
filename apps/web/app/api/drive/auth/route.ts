@@ -1,44 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
+    const accessToken = request.cookies.get('google_drive_access_token')?.value;
     
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    const { data: identitiesData } = await supabaseAdmin.auth.admin.getUserById(user.id);
-    const googleIdentity = identitiesData?.user?.identities?.find((id: any) => id.provider === 'google');
-
-    if (!googleIdentity) {
+    if (accessToken) {
       return NextResponse.json({ 
-        connected: false, 
-        error: 'Google account not linked' 
-      }, { status: 200 });
+        connected: true,
+        hasToken: true
+      });
     }
+
+    const origin = request.headers.get('origin') || 'http://localhost:3000';
+    const redirectUri = `${origin}/api/drive/callback`;
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/userinfo.email'
+      ].join(' '),
+      access_type: 'offline',
+      prompt: 'consent'
+    });
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
     return NextResponse.json({ 
-      connected: true,
-      hasToken: !!googleIdentity.identity_data
+      connected: false,
+      authUrl
     });
 
   } catch (error: any) {

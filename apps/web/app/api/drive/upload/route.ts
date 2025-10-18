@@ -1,32 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
- 
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
 export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Invalid token', details: userError?.message }, { status: 401 });
-    }
-
     const body = await request.json();
     const { projects } = body as { projects: Array<{ id: string; name: string; zipData: string }> };
 
@@ -34,10 +13,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No projects specified' }, { status: 400 });
     }
 
-    const { data: userData } = await supabaseAdmin.auth.admin.getUserById(user.id);
-    const providerToken = userData?.user?.user_metadata?.google_drive_access_token;
-    const refreshToken = userData?.user?.user_metadata?.google_drive_refresh_token;
-    const tokenExpiry = userData?.user?.user_metadata?.google_drive_token_expiry;
+    const providerToken = request.cookies.get('google_drive_access_token')?.value;
+    const refreshToken = request.cookies.get('google_drive_refresh_token')?.value;
+    const tokenExpiryStr = request.cookies.get('google_drive_token_expiry')?.value;
+    const tokenExpiry = tokenExpiryStr ? parseInt(tokenExpiryStr) : undefined;
 
     if (!providerToken) {
       return NextResponse.json({ 
@@ -45,11 +24,10 @@ export async function POST(request: NextRequest) {
         needsConnection: true
       }, { status: 403 });
     }
-
-    const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
-    const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
     
     let accessToken = providerToken as string;
+    let newAccessToken: string | undefined;
+    let newTokenExpiry: number | undefined;
 
     if (tokenExpiry && Date.now() >= tokenExpiry) {
       if (!refreshToken) {
@@ -80,15 +58,8 @@ export async function POST(request: NextRequest) {
 
         const refreshed = await refreshRes.json() as { access_token: string; expires_in?: number };
         accessToken = refreshed.access_token;
-
-        const newExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
-        await supabaseAdmin.auth.admin.updateUserById(user.id, {
-          user_metadata: {
-            ...userData?.user?.user_metadata,
-            google_drive_access_token: accessToken,
-            ...(newExpiry ? { google_drive_token_expiry: newExpiry } : {})
-          }
-        });
+        newAccessToken = refreshed.access_token;
+        newTokenExpiry = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : undefined;
       } catch (refreshError: any) {
         console.error('Token refresh failed:', refreshError);
         return NextResponse.json({ 
@@ -213,7 +184,29 @@ export async function POST(request: NextRequest) {
     }
 
     const successCount = results.filter(r => r.success).length;
-    return NextResponse.json({ success: true, uploaded: successCount, total: projects.length, results });
+    const response = NextResponse.json({ success: true, uploaded: successCount, total: projects.length, results });
+    
+    if (newAccessToken) {
+      response.cookies.set('google_drive_access_token', newAccessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 3600,
+        path: '/'
+      });
+    }
+    
+    if (newTokenExpiry) {
+      response.cookies.set('google_drive_token_expiry', newTokenExpiry.toString(), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365,
+        path: '/'
+      });
+    }
+    
+    return response;
 
   } catch (error: any) {
     console.error('Drive upload error:', error);

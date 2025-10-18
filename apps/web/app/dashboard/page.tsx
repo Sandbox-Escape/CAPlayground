@@ -30,6 +30,8 @@ function DashboardContent() {
     
     if (driveConnected === 'true') {
       alert('Google Drive connected successfully! You can now upload projects.');
+      setDriveConnected(true);
+      setCheckingGoogle(false);
     } else if (error) {
       alert(`Drive connection error: ${error}`);
     }
@@ -63,8 +65,13 @@ function DashboardContent() {
           setHasGoogleLinked(hasGoogle)
         }
         
-        const hasDriveToken = meta.google_drive_access_token
-        if (mounted) setDriveConnected(!!hasDriveToken)
+        try {
+          const driveRes = await fetch('/api/drive/auth')
+          const driveData = await driveRes.json()
+          if (mounted) setDriveConnected(driveData.connected === true)
+        } catch (e) {
+          console.error('Failed to check Drive connection:', e)
+        }
       } catch (e) {
         console.error('Failed to check Google identity:', e)
       } finally {
@@ -78,6 +85,7 @@ function DashboardContent() {
   async function handleSignOut() {
     setLoading(true)
     try {
+      await fetch('/api/auth/signout', { method: 'POST' })
       await supabase.auth.signOut()
       router.replace("/")
     } finally {

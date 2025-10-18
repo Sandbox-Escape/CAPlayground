@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 export const runtime = 'edge';
 
 export async function GET(request: NextRequest) {
@@ -21,10 +18,6 @@ export async function GET(request: NextRequest) {
 
     if (!code) {
       return NextResponse.redirect(`${origin}/dashboard?error=no_code`);
-    }
-
-    if (!state) {
-      return NextResponse.redirect(`${origin}/dashboard?error=no_user_id`);
     }
 
     const redirectUri = `${origin}/api/drive/callback`;
@@ -48,39 +41,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/dashboard?error=no_token`);
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
-
-    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(state);
-    
-    if (userError || !userData?.user) {
-      console.error('Failed to get user:', userError);
-      return NextResponse.redirect(`${origin}/dashboard?error=user_not_found`);
-    }
-
-    const user = userData.user;
-
     const nowExpiry = tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : undefined;
-    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
-      user_metadata: {
-        ...user.user_metadata,
-        google_drive_access_token: tokens.access_token,
-        ...(tokens.refresh_token ? { google_drive_refresh_token: tokens.refresh_token } : {}),
-        ...(nowExpiry ? { google_drive_token_expiry: nowExpiry } : {}),
-        google_drive_connected_at: new Date().toISOString()
-      }
+    
+    const response = NextResponse.redirect(`${origin}/dashboard?drive_connected=true`);
+    
+    response.cookies.set('google_drive_access_token', tokens.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: tokens.expires_in || 3600,
+      path: '/'
     });
-
-    if (updateError) {
-      console.error('Failed to update user metadata:', updateError);
-      return NextResponse.redirect(`${origin}/dashboard?error=update_failed`);
+    
+    if (tokens.refresh_token) {
+      response.cookies.set('google_drive_refresh_token', tokens.refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365,
+        path: '/'
+      });
+    }
+    
+    if (nowExpiry) {
+      response.cookies.set('google_drive_token_expiry', nowExpiry.toString(), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365,
+        path: '/'
+      });
     }
 
-    return NextResponse.redirect(`${origin}/dashboard?drive_connected=true`);
+    return response;
 
   } catch (error: any) {
     console.error('Drive callback error:', error);

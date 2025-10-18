@@ -187,6 +187,7 @@ export default function AccountPage() {
       const { error } = await supabase.auth.updateUser({ email: next })
       if (error) throw error
       setMessage("Verification email sent to update your email. You'll be signed out now; please sign back in after verifying.")
+      await fetch('/api/auth/signout', { method: 'POST' })
       await supabase.auth.signOut()
       window.location.href = "/signin"
     } catch (e: any) {
@@ -208,6 +209,7 @@ export default function AccountPage() {
   }
 
   async function signOut() {
+    await fetch('/api/auth/signout', { method: 'POST' })
     await supabase.auth.signOut()
     window.location.href = "/"
   }
@@ -232,6 +234,7 @@ export default function AccountPage() {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || `Delete failed with status ${res.status}`)
       }
+      await fetch('/api/auth/signout', { method: 'POST' })
       await supabase.auth.signOut()
       window.location.href = "/"
     } catch (e: any) {
