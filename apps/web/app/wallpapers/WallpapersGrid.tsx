@@ -8,8 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Upload, Edit, Download } from "lucide-react"
+import { Upload, Edit, Download, X } from "lucide-react"
 import { SubmitWallpaperDialog } from "./SubmitWallpaperDialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import type { CAAsset } from "@/lib/ca/types"
 import { ensureUniqueProjectName, createProject, listProjects, putBlobFile, putTextFile } from "@/lib/storage"
@@ -48,11 +55,20 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
   const [downloadStats, setDownloadStats] = useState<Record<string, number>>({})
   const [sortBy, setSortBy] = useState<'default' | 'downloads'>('downloads')
   const [isIOS, setIsIOS] = useState(false)
+  const [expandedWallpaper, setExpandedWallpaper] = useState<WallpaperItem | null>(null)
 
   useEffect(() => {
     const initial = (searchParams?.get("q") || "").trim()
     setQ(initial)
-  }, [searchParams])
+    
+    const wallpaperId = searchParams?.get("id")
+    if (wallpaperId && data.wallpapers) {
+      const wallpaper = data.wallpapers.find(w => w.id === wallpaperId)
+      if (wallpaper) {
+        setExpandedWallpaper(wallpaper)
+      }
+    }
+  }, [searchParams, data.wallpapers])
 
   useEffect(() => {
     console.log('Fetching download stats...')
@@ -280,7 +296,16 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
           const previewUrl = `${data.base_url}${item.preview}`
           const fileUrl = `${data.base_url}${item.file}`
           return (
-            <Card key={`${item.name}-${item.file}`} className="overflow-hidden">
+            <Card 
+              key={`${item.name}-${item.file}`} 
+              className="overflow-hidden cursor-pointer transition-transform hover:scale-[1.02]"
+              onClick={() => {
+                setExpandedWallpaper(item)
+                const params = new URLSearchParams(window.location.search)
+                params.set('id', item.id)
+                router.push(`/wallpapers?${params.toString()}`, { scroll: false })
+              }}
+            >
               <div className="pt-0 px-5">
                 <div className="mb-3 overflow-hidden rounded-md border bg-background">
                   <AspectRatio ratio={1} className="flex items-center justify-center">
@@ -318,7 +343,10 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{item.description}</p>
                 <div className="flex flex-col gap-2">
                   <Button 
-                    onClick={() => handleOpenInEditor(item)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleOpenInEditor(item)
+                    }}
                     disabled={importingWallpaper === item.name}
                     className="w-full"
                   >
@@ -329,7 +357,8 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                     <Button 
                       variant="outline" 
                       className="w-full"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         trackDownload(item.id, item.name)
                         window.location.href = `pocketposter://download?url=${fileUrl}`
                       }}
@@ -340,7 +369,8 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                     <Button 
                       variant="outline" 
                       className="w-full"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation()
                         trackDownload(item.id, item.name)
                         window.open(fileUrl, '_blank')
                       }}
@@ -361,6 +391,112 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
         username={username || displayName || "Anonymous"}
         isSignedIn={isSignedIn}
       />
+
+      {/* Expanded Wallpaper */}
+      <Dialog open={!!expandedWallpaper} onOpenChange={(open) => {
+        if (!open) {
+          setExpandedWallpaper(null)
+          const params = new URLSearchParams(window.location.search)
+          params.delete('id')
+          const newUrl = params.toString() ? `/wallpapers?${params.toString()}` : '/wallpapers'
+          router.push(newUrl, { scroll: false })
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          {expandedWallpaper && (() => {
+            const previewUrl = `${data.base_url}${expandedWallpaper.preview}`
+            const fileUrl = `${data.base_url}${expandedWallpaper.file}`
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">{expandedWallpaper.name}</DialogTitle>
+                  <DialogDescription className="text-base">
+                    by {expandedWallpaper.creator} (submitted on {expandedWallpaper.from})
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-6 mt-4">
+                  {/* Preview */}
+                  <div className="overflow-hidden rounded-lg border bg-background">
+                    <AspectRatio ratio={1} className="flex items-center justify-center">
+                      {isVideo(previewUrl) ? (
+                        <video
+                          src={previewUrl}
+                          className="w-full h-full object-contain"
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          aria-label={`${expandedWallpaper.name} preview`}
+                        />
+                      ) : (
+                        <img 
+                          src={previewUrl} 
+                          alt={`${expandedWallpaper.name} preview`} 
+                          className="w-full h-full object-contain" 
+                        />
+                      )}
+                    </AspectRatio>
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <h3 className="font-semibold mb-2">Description</h3>
+                    <p className="text-sm text-muted-foreground">{expandedWallpaper.description}</p>
+                  </div>
+
+                  {/* Download Stats */}
+                  {downloadStats[expandedWallpaper.id] > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Download className="h-4 w-4" />
+                      <span>{downloadStats[expandedWallpaper.id]}</span>
+                      <span>{downloadStats[expandedWallpaper.id] === 1 ? 'Download' : 'Downloads'}</span>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <Button 
+                      onClick={() => {
+                        setExpandedWallpaper(null)
+                        handleOpenInEditor(expandedWallpaper)
+                      }}
+                      disabled={importingWallpaper === expandedWallpaper.name}
+                      className="flex-1"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      {importingWallpaper === expandedWallpaper.name ? 'Opening...' : 'Open in Editor'}
+                    </Button>
+                    {isIOS ? (
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => {
+                          trackDownload(expandedWallpaper.id, expandedWallpaper.name)
+                          window.location.href = `pocketposter://download?url=${fileUrl}`
+                        }}
+                      >
+                        Open in Pocket Poster
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => {
+                          trackDownload(expandedWallpaper.id, expandedWallpaper.name)
+                          window.open(fileUrl, '_blank')
+                        }}
+                      >
+                        Download .tendies
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
