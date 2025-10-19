@@ -63,7 +63,7 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
     
     const wallpaperId = searchParams?.get("id")
     if (wallpaperId && data.wallpapers) {
-      const wallpaper = data.wallpapers.find(w => w.id === wallpaperId)
+      const wallpaper = data.wallpapers.find(w => String(w.id) === wallpaperId)
       if (wallpaper) {
         setExpandedWallpaper(wallpaper)
       }
@@ -135,8 +135,8 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
   
     if (sortBy === 'downloads') {
       result = [...result].sort((a, b) => {
-        const aDownloads = downloadStats[a.id] || 0
-        const bDownloads = downloadStats[b.id] || 0
+        const aDownloads = downloadStats[String(a.id)] || 0
+        const bDownloads = downloadStats[String(b.id)] || 0
         return bDownloads - aDownloads
       })
     }
@@ -328,11 +328,11 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                 <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
                   by {item.creator} (submitted on {item.from})
                 </p>
-                {downloadStats[item.id] > 0 && (
+                {downloadStats[String(item.id)] > 0 && (
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
                     <Download className="h-3.5 w-3.5" />
-                    <span>{downloadStats[item.id]}</span>
-                    <span>{downloadStats[item.id] === 1 ? 'Download' : 'Downloads'}</span>
+                    <span>{downloadStats[String(item.id)]}</span>
+                    <span>{downloadStats[String(item.id)] === 1 ? 'Download' : 'Downloads'}</span>
                   </div>
                 )}
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{item.description}</p>
@@ -441,11 +441,11 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                   </div>
 
                   {/* Download Stats */}
-                  {downloadStats[expandedWallpaper.id] > 0 && (
+                  {downloadStats[String(expandedWallpaper.id)] > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Download className="h-4 w-4" />
-                      <span>{downloadStats[expandedWallpaper.id]}</span>
-                      <span>{downloadStats[expandedWallpaper.id] === 1 ? 'Download' : 'Downloads'}</span>
+                      <span>{downloadStats[String(expandedWallpaper.id)]}</span>
+                      <span>{downloadStats[String(expandedWallpaper.id)] === 1 ? 'Download' : 'Downloads'}</span>
                     </div>
                   )}
 
