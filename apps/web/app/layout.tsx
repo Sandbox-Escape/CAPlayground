@@ -4,8 +4,8 @@ import { Source_Sans_3 } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Favicon } from "@/components/favicon"
-import DatabuddyClient from "@/components/analytics/databuddy"
 import UnofficialDomainBanner from "@/components/unofficial-domain-banner"
+import { PostHogProvider } from "@/components/posthog-provider"
 
 const sourceSans = Source_Sans_3({
   subsets: ["latin"],
@@ -54,13 +54,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${sourceSans.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <UnofficialDomainBanner />
-          <Favicon />
-          <DatabuddyClient>
+        <PostHogProvider>
+          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <UnofficialDomainBanner />
+            <Favicon />
             {children}
-          </DatabuddyClient>
-        </ThemeProvider>
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   )

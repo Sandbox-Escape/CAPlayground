@@ -40,7 +40,7 @@ export default function PrivacyPage() {
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 sm:mb-8">
           <h1 className="text-4xl md:text-5xl font-bold tracking-tight">Privacy Policy</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Last Updated: 18th October 2025</p>
+          <p className="mt-2 text-sm text-muted-foreground">Last Updated: 20th October 2025</p>
         </div>
 
         {/* Paper container */}
@@ -109,8 +109,8 @@ export default function PrivacyPage() {
           <h2 className="mt-12 text-3xl md:text-4xl font-semibold">4. Third Parties</h2>
           <p className="mt-6 leading-7">
             We use Supabase for authentication and backend infrastructure. Supabase may process data necessary to provide those
-            services and may maintain operational logs (e.g., auth events). We also use Databuddy for privacy conscious
-            analytics as described above. Refer to those providers' documentation/policies for more details.
+            services and may maintain operational logs (e.g., auth events). We also use PostHog for privacy focused
+            analytics as described above. PostHog data is proxied through our own domain to improve reliability. Refer to those providers' documentation/policies for more details.
           </p>
           <p className="mt-4 leading-7">
             <strong>Google Drive (Optional)</strong>: If you choose to use Cloud Projects, we integrate with Google Drive to store your project files. Your project files are stored in YOUR Google Drive account in a folder named "CAPlayground". We access only files created by CAPlayground. Your use of Google Drive is subject to <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">Google's Privacy Policy</a>. You can revoke CAPlayground's access to your Drive at any time through your Google account settings.
