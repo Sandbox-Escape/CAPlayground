@@ -14,9 +14,10 @@ export const runtime = 'edge'
 export async function generateMetadata({
   searchParams,
 }: {
-  searchParams: { id?: string }
+  searchParams: Promise<{ id?: string }>
 }): Promise<Metadata> {
-  const wallpaperId = searchParams.id
+  const params = await searchParams
+  const wallpaperId = params.id
 
   if (wallpaperId) {
     try {

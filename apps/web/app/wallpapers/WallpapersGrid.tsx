@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Upload, Edit, Download, X } from "lucide-react"
+import { Upload, Edit, Download, X, Copy, Check } from "lucide-react"
 import { SubmitWallpaperDialog } from "./SubmitWallpaperDialog"
 import {
   Dialog,
@@ -20,6 +20,7 @@ import {
 import { getSupabaseBrowserClient } from "@/lib/supabase"
 import type { CAAsset } from "@/lib/ca/types"
 import { ensureUniqueProjectName, createProject, listProjects, putBlobFile, putTextFile } from "@/lib/storage"
+import { useToast } from "@/hooks/use-toast"
 
 interface WallpaperItem {
   id: string | number
@@ -46,6 +47,7 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
   const supabase = getSupabaseBrowserClient()
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const [q, setQ] = useState("")
   const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false)
   const [username, setUsername] = useState<string>("")
@@ -56,6 +58,7 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
   const [sortBy, setSortBy] = useState<'default' | 'downloads'>('downloads')
   const [isIOS, setIsIOS] = useState(false)
   const [expandedWallpaper, setExpandedWallpaper] = useState<WallpaperItem | null>(null)
+  const [copiedWallpaperId, setCopiedWallpaperId] = useState<string | number | null>(null)
 
   useEffect(() => {
     const initial = (searchParams?.get("q") || "").trim()
@@ -74,14 +77,18 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
     console.log('Fetching download stats...')
     fetch('/api/wallpapers/stats')
       .then(res => res.json())
-      .then((stats: Array<{ id: string; downloads: number }>) => {
+      .then((stats: Array<{ id: string; downloads: number }> | { error: string }) => {
         console.log('Download stats received:', stats)
-        const statsMap = stats.reduce((acc, stat) => {
-          acc[stat.id] = stat.downloads
-          return acc
-        }, {} as Record<string, number>)
-        console.log('Stats map:', statsMap)
-        setDownloadStats(statsMap)
+        if (Array.isArray(stats)) {
+          const statsMap = stats.reduce((acc, stat) => {
+            acc[stat.id] = stat.downloads
+            return acc
+          }, {} as Record<string, number>)
+          console.log('Stats map:', statsMap)
+          setDownloadStats(statsMap)
+        } else {
+          console.warn('Stats API returned error:', stats)
+        }
       })
       .catch(err => console.error('Failed to fetch download stats:', err))
   }, [])
@@ -162,6 +169,25 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
         }
       })
       .catch(err => console.error('Failed to track download:', err))
+  }
+
+  const handleCopyLink = (item: WallpaperItem) => {
+    const url = `${window.location.origin}/wallpapers?id=${item.id}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedWallpaperId(item.id)
+      toast({
+        title: "Link copied!",
+        description: "Wallpaper link has been copied to clipboard.",
+      })
+      setTimeout(() => setCopiedWallpaperId(null), 2000)
+    }).catch((err) => {
+      console.error('Failed to copy link:', err)
+      toast({
+        title: "Failed to copy",
+        description: "Could not copy link to clipboard.",
+        variant: "destructive",
+      })
+    })
   }
 
   const handleOpenInEditor = async (item: WallpaperItem) => {
@@ -450,41 +476,60 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                   )}
 
                   {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button 
+                        onClick={() => {
+                          setExpandedWallpaper(null)
+                          handleOpenInEditor(expandedWallpaper)
+                        }}
+                        disabled={importingWallpaper === expandedWallpaper.name}
+                        className="flex-1"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        {importingWallpaper === expandedWallpaper.name ? 'Opening...' : 'Open in Editor'}
+                      </Button>
+                      {isIOS ? (
+                        <Button 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={() => {
+                            trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
+                            window.location.href = `pocketposter://download?url=${fileUrl}`
+                          }}
+                        >
+                          Open in Pocket Poster
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          className="flex-1"
+                          onClick={() => {
+                            trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
+                            window.open(fileUrl, '_blank')
+                          }}
+                        >
+                          Download .tendies
+                        </Button>
+                      )}
+                    </div>
                     <Button 
-                      onClick={() => {
-                        setExpandedWallpaper(null)
-                        handleOpenInEditor(expandedWallpaper)
-                      }}
-                      disabled={importingWallpaper === expandedWallpaper.name}
-                      className="flex-1"
+                      variant="secondary" 
+                      className="w-full"
+                      onClick={() => handleCopyLink(expandedWallpaper)}
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      {importingWallpaper === expandedWallpaper.name ? 'Opening...' : 'Open in Editor'}
+                      {copiedWallpaperId === expandedWallpaper.id ? (
+                        <>
+                          <Check className="h-4 w-4 mr-2" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy Link
+                        </>
+                      )}
                     </Button>
-                    {isIOS ? (
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => {
-                          trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
-                          window.location.href = `pocketposter://download?url=${fileUrl}`
-                        }}
-                      >
-                        Open in Pocket Poster
-                      </Button>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => {
-                          trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
-                          window.open(fileUrl, '_blank')
-                        }}
-                      >
-                        Download .tendies
-                      </Button>
-                    )}
                   </div>
                 </div>
               </>
