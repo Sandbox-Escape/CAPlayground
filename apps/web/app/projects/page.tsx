@@ -1902,90 +1902,94 @@ function ProjectsContent() {
                     }}
                   >
                     <CardContent className="p-4">
-                      <div className="flex gap-4 items-center">
-                        {isSelectMode && (
-                          <div className="flex-shrink-0 h-6 w-6 rounded-full border flex items-center justify-center">
-                            {isSelected && <Check className="h-4 w-4 text-accent" />}
+                      <div className="flex flex-col gap-3">
+                        <div className="flex gap-4 items-center">
+                          {isSelectMode && (
+                            <div className="flex-shrink-0 h-6 w-6 rounded-full border flex items-center justify-center">
+                              {isSelected && <Check className="h-4 w-4 text-accent" />}
+                            </div>
+                          )}
+                          <div className="flex-shrink-0 w-20 h-20 overflow-hidden rounded-md border bg-background">
+                            <ProjectThumb doc={doc} />
                           </div>
-                        )}
-                        <div className="flex-shrink-0 w-20 h-20 overflow-hidden rounded-md border bg-background">
-                          <ProjectThumb doc={doc} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium truncate" title={project.name}>
-                            {renderHighlighted(project.name, query)}
-                          </h3>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Created: {new Date(project.createdAt).toLocaleDateString()}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1">
-                            {project.storageLocation === 'Device and Cloud' ? (
-                              <>
-                                <div className="flex items-center gap-0.5">
-                                  <HardDrive className="h-3 w-3 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-medium truncate" title={project.name}>
+                              {renderHighlighted(project.name, query)}
+                            </h3>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Created: {new Date(project.createdAt).toLocaleDateString()}
+                            </p>
+                            <div className="flex items-center gap-1 mt-1">
+                              {project.storageLocation === 'Device and Cloud' ? (
+                                <>
+                                  <div className="flex items-center gap-0.5">
+                                    <HardDrive className="h-3 w-3 text-muted-foreground" />
+                                    <Cloud className="h-3 w-3 text-muted-foreground" />
+                                  </div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {project.needsSync ? 'Out of sync' : 'Saved to Device and Cloud'}
+                                  </span>
+                                </>
+                              ) : project.storageLocation === 'Cloud' ? (
+                                <>
                                   <Cloud className="h-3 w-3 text-muted-foreground" />
-                                </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {project.needsSync ? 'Out of sync' : 'Saved to Device and Cloud'}
-                                </span>
-                              </>
-                            ) : project.storageLocation === 'Cloud' ? (
-                              <>
-                                <Cloud className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Saved to Cloud</span>
-                              </>
-                            ) : (
-                              <>
-                                <HardDrive className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-xs text-muted-foreground">Saved to Device</span>
-                              </>
-                            )}
+                                  <span className="text-xs text-muted-foreground">Saved to Cloud</span>
+                                </>
+                              ) : (
+                                <>
+                                  <HardDrive className="h-3 w-3 text-muted-foreground" />
+                                  <span className="text-xs text-muted-foreground">Saved to Device</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className={`h-8 w-8 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
+                                  disabled={isSelectMode}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditing(project); }}>
+                                  <Edit3 className="h-4 w-4 mr-2" />
+                                  Rename
+                                </DropdownMenuItem>
+                                {project.storageLocation !== 'Cloud' && (
+                                  <DropdownMenuItem onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await syncSingleProject(project.id);
+                                  }}>
+                                    <Cloud className="h-4 w-4 mr-2" />
+                                    Sync to Cloud
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem 
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={(e) => { e.stopPropagation(); confirmDelete(project); }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
-                        <div className="flex-shrink-0 flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            className={isSelectMode ? 'opacity-50 pointer-events-none' : ''}
+                            className={`flex-1 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
                             disabled={isSelectMode}
                             onClick={(e) => { e.stopPropagation(); openProject(project); }}
                           >
                             Open <ArrowRight className="h-4 w-4 ml-1" />
                           </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className={`h-8 w-8 ${isSelectMode ? 'opacity-50 pointer-events-none' : ''}`}
-                                disabled={isSelectMode}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); startEditing(project); }}>
-                                <Edit3 className="h-4 w-4 mr-2" />
-                                Rename
-                              </DropdownMenuItem>
-                              {project.storageLocation !== 'Cloud' && (
-                                <DropdownMenuItem onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await syncSingleProject(project.id);
-                                }}>
-                                  <Cloud className="h-4 w-4 mr-2" />
-                                  Sync to Cloud
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive"
-                                onClick={(e) => { e.stopPropagation(); confirmDelete(project); }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
                         </div>
                       </div>
                     </CardContent>
