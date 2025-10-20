@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { AnyLayer, CAProject, GroupLayer, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary } from "@/lib/ca/types";
+import type { AnyLayer, CAProject, GroupLayer, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer } from "@/lib/ca/types";
 import { serializeCAML } from "@/lib/ca/caml";
 import { getProject, listFiles, putBlobFile, putBlobFilesBatch, putTextFile } from "@/lib/storage";
 import {
@@ -17,6 +17,7 @@ import {
   wrapAsGroup,
 } from "@/lib/editor/layer-utils";
 import { sanitizeFilename, dataURLToBlob } from "@/lib/editor/file-utils";
+import { CAEmitterCell } from "./emitter/emitter";
 
 type CADoc = {
   layers: AnyLayer[];
@@ -54,9 +55,12 @@ export type EditorContextValue = {
   addImageLayerFromFile: (file: File) => Promise<void>;
   addImageLayerFromBlob: (blob: Blob, filename?: string) => Promise<void>;
   replaceImageForLayer: (layerId: string, file: File) => Promise<void>;
+  addEmitterCellImage: (layerId: string, file: File) => Promise<void>;
   addShapeLayer: (shape?: ShapeLayer["shape"]) => void;
   addGradientLayer: () => void;
   addVideoLayerFromFile: (file: File) => Promise<void>;
+  addEmitterLayer: () => void;
+  removeEmitterCell: (layerId: string, index: number) => void;
   updateLayer: (id: string, patch: Partial<AnyLayer>) => void;
   updateLayerTransient: (id: string, patch: Partial<AnyLayer>) => void;
   selectLayer: (id: string | null) => void;
@@ -226,6 +230,17 @@ export function EditorProvider({
                   }
                 } else if (layer.type === "group") {
                   walk((layer as GroupLayer).children);
+                } else if (layer.type === "emitter") {
+                  const emitter = layer as EmitterLayer;
+                  emitter.emitterCells?.forEach((cell) => {
+                    const src = cell.src || "";
+                    const name = src.split("/").pop() || "";
+                    const nameNorm = normalize(name);
+                    const srcNorm = normalize(src);
+                    if (nameNorm === fileNorm || srcNorm.includes(fileNorm)) {
+                      matches.push(cell.id);
+                    }
+                  });
                 }
               }
             };
@@ -468,6 +483,17 @@ export function EditorProvider({
                 return { ...l, src: `assets/${asset.filename}` } as AnyLayer;
               }
               return l;
+            }
+            if (l.type === 'emitter') {
+              const cells = (l as EmitterLayer).emitterCells;
+              const newCells = cells?.map((c) => {
+                const asset = assetsMap ? assetsMap[c.id] : undefined;
+                if (asset && asset.filename) {
+                  return { ...c, src: `assets/${asset.filename}` };
+                }
+                return c;
+              });
+              return { ...l, emitterCells: newCells } as EmitterLayer;
             }
             if (l.type === 'group') {
               const g = l as GroupLayer;
@@ -763,6 +789,77 @@ export function EditorProvider({
           return l;
         });
       const next = { ...cur, assets, layers: updateRec(cur.layers) };
+      return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
+    });
+  }, []);
+
+  const addEmitterCellImage = useCallback(async (layerId: string, file: File) => {
+    if (/image\/gif/i.test(file.type || '') || /\.gif$/i.test(file.name || '')) {
+      throw new Error('Cannot add emitter cell with a GIF. Please use Video Layer to import GIFs.');
+    }
+    const dataURL = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    // Eagerly write asset to storage
+    try {
+      const caFolder = (currentKey === 'floating') ? 'Floating.ca' : (currentKey === 'wallpaper') ? 'Wallpaper.ca' : 'Background.ca';
+      const projName = doc?.meta.name || initialMeta.name;
+      const folder = `${projName}.ca`;
+      const safe = sanitizeFilename(file.name) || `image-${Date.now()}.png`;
+      await putBlobFile(projectId, `${folder}/${caFolder}/assets/${safe}`, file);
+    } catch {}
+
+    setDoc((prev) => {
+      if (!prev) return prev;
+      pushHistory(prev);
+      const filename = sanitizeFilename(file.name) || `image-${Date.now()}.png`;
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const assets = { ...(cur.assets || {}) };
+      const cellId = genId();
+      assets[cellId] = { filename, dataURL };
+      const updateRec = (layers: AnyLayer[]): AnyLayer[] =>
+        layers.map((l) => {
+        if (l.id === layerId) {
+          const newCell = new CAEmitterCell()
+          newCell.contents = dataURL
+          newCell.id = cellId
+          return {
+            ...l,
+            emitterCells: [...((l as any).emitterCells || []), newCell],
+          } as EmitterLayer;
+        }
+        return l;
+      });
+      const next = { ...cur, assets, layers: updateRec(cur.layers) };
+      return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
+    });
+
+  }, []);
+
+  const removeEmitterCell = useCallback((layerId: string, index: number) => {
+    setDoc((prev) => {
+      if (!prev) return prev;
+      pushHistory(prev);
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const updateRec = (layers: AnyLayer[]): AnyLayer[] =>
+        layers.map((l) => {
+          if (l.id === layerId) {
+            const newCells = [...((l as any).emitterCells || [])];
+            newCells.splice(index, 1);
+            return {
+              ...l,
+              emitterCells: newCells,
+            } as EmitterLayer;
+          }
+          return l;
+        });
+      const next = { ...cur, layers: updateRec(cur.layers) };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
   }, []);
@@ -1196,6 +1293,30 @@ export function EditorProvider({
     });
   }, [pushHistory]);
 
+  const addEmitterLayer = useCallback(() => {
+    setDoc((prev) => {
+      if (!prev) return prev;
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
+      const layer: EmitterLayer = {
+        ...addBase('Emitter Layer'),
+        position: { x: canvasW / 2, y: canvasH / 2 },
+        size: { w: canvasW, h: canvasH },
+        emitterPosition: { x: 0, y: 0 },
+        emitterSize: { w: 0, h: 0 },
+        emitterShape: 'point',
+        emitterMode: 'volume',
+        emitterCells: [],
+        type: 'emitter',
+      };
+      const nextLayers = [...cur.layers, layer];
+      const nextCur = { ...cur, layers: nextLayers } as CADoc;
+      return { ...prev, docs: { ...prev.docs, [key]: nextCur } } as ProjectDocument;
+    });
+  }, [addBase]);
+  
   const updateLayer = useCallback((id: string, patch: Partial<AnyLayer>) => {
     setDoc((prev) => {
       if (!prev) return prev;
@@ -1490,9 +1611,12 @@ export function EditorProvider({
     addImageLayerFromFile,
     addImageLayerFromBlob,
     replaceImageForLayer,
+    addEmitterCellImage,
+    removeEmitterCell,
     addShapeLayer,
     addGradientLayer,
     addVideoLayerFromFile,
+    addEmitterLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,
@@ -1523,9 +1647,12 @@ export function EditorProvider({
     addImageLayerFromFile,
     addImageLayerFromBlob,
     replaceImageForLayer,
+    addEmitterCellImage,
+    removeEmitterCell,
     addShapeLayer,
     addGradientLayer,
     addVideoLayerFromFile,
+    addEmitterLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,

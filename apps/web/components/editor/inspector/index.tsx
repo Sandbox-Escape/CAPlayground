@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEditor } from "../editor-context";
 import { useEffect, useMemo, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SquareSlash, Box, Layers, Palette, Type, Image as ImageIcon, Play, PanelLeft, PanelTop, PanelRight, Video, Smartphone, Blend } from "lucide-react";
+import { SquareSlash, Box, Layers, Palette, Type, Image as ImageIcon, Play, PanelLeft, PanelTop, PanelRight, Video, Smartphone, Blend, Cog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { round2, fmt2, fmt0, findById, type TabId } from "./types";
@@ -22,9 +22,10 @@ import { ImageTab } from "./tabs/ImageTab";
 import { VideoTab } from "./tabs/VideoTab";
 import { AnimationsTab } from "./tabs/AnimationsTab";
 import { GyroTab } from "./tabs/GyroTab";
+import { EmitterTab } from "./tabs/EmitterTab";
 
 export function Inspector() {
-  const { doc, setDoc, updateLayer, updateLayerTransient, replaceImageForLayer, isAnimationPlaying, animatedLayers, selectLayer } = useEditor();
+  const { doc, setDoc, updateLayer, updateLayerTransient, replaceImageForLayer, addEmitterCellImage, isAnimationPlaying, animatedLayers, selectLayer } = useEditor();
   const [sidebarPosition, setSidebarPosition] = useLocalStorage<'left' | 'top' | 'right'>('caplay_inspector_tab_position', 'left');
   
   const key = doc?.activeCA ?? 'floating';
@@ -112,7 +113,7 @@ export function Inspector() {
   const [activeTab, setActiveTab] = useState<TabId>('geometry');
 
   const tabs = useMemo(() => {
-    const baseTabs = [
+    let baseTabs = [
       { id: 'geometry' as TabId, icon: Box, label: 'Geometry' },
       { id: 'compositing' as TabId, icon: Layers, label: 'Compositing' },
       { id: 'content' as TabId, icon: Palette, label: 'Content' },
@@ -133,20 +134,26 @@ export function Inspector() {
     if (doc?.meta.gyroEnabled) {
       baseTabs.push({ id: 'gyro' as TabId, icon: Smartphone, label: 'Gyro (Parallax)' });
     }
+    if (selected?.type === 'emitter') {
+      baseTabs = []
+      baseTabs.push({ id: 'emitter' as TabId, icon: Cog, label: 'Emitter' });
+    }
     return baseTabs;
   }, [selected?.type, doc?.meta.gyroEnabled]);
 
   useEffect(() => {
-    if (selected?.type === 'text' && (activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video')) {
+    if (selected?.type === 'text' && (activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('text');
-    } else if (selected?.type === 'gradient' && (activeTab === 'text' || activeTab === 'image' || activeTab === 'video')) {
+    } else if (selected?.type === 'gradient' && (activeTab === 'text' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('gradient');
-    } else if (selected?.type === 'image' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'video')) {
+    } else if (selected?.type === 'image' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('image');
-    } else if (selected?.type === 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image')) {
+    } else if (selected?.type === 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'emitter')) {
       setActiveTab('video');
-    } else if (selected?.type !== 'text' && selected?.type !== 'gradient' && selected?.type !== 'image' && selected?.type !== 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video')) {
+    } else if (selected?.type !== 'text' && selected?.type !== 'emitter' && selected?.type !== 'gradient' && selected?.type !== 'image' && selected?.type !== 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('geometry');
+    } else if (selected?.type === 'emitter') {
+      setActiveTab('emitter');
     }
   }, [selected?.type, activeTab]);
 
@@ -368,6 +375,14 @@ export function Inspector() {
             <VideoTab {...tabProps} />
           )}
 
+          {activeTab === 'emitter' && selected.type === "emitter" && (
+            <EmitterTab
+              {...tabProps}
+              addEmitterCellImage={addEmitterCellImage}
+              assets={current?.assets}
+            />
+          )}
+          
           {activeTab === 'animations' && (
             <AnimationsTab
               {...tabProps}

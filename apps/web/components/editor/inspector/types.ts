@@ -1,6 +1,16 @@
 import type { AnyLayer } from "@/lib/ca/types";
 
-export type TabId = 'geometry' | 'compositing' | 'content' | 'text' | 'gradient' | 'image' | 'video' | 'animations' | 'gyro';
+export type TabId =
+  'geometry' |
+  'compositing' |
+  'content' |
+  'text' |
+  'gradient' |
+  'image' |
+  'video' |
+  'emitter' |
+  'animations' |
+  'gyro';
 
 export interface InspectorTabProps {
   selected: AnyLayer;
