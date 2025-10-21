@@ -148,6 +148,7 @@ export class CAEmitterLayer {
         ctx.save();
         ctx.translate(p.x, p.y);
         if (p.spin !== 0) ctx.rotate(p.rot);
+        ctx.scale(1, -1);
         ctx.drawImage(p.sprite, -w / 2, -h / 2, w, h);
         ctx.restore();
       } else {
