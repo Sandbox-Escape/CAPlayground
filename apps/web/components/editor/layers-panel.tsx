@@ -9,7 +9,21 @@ import { useEffect, useRef, useState } from "react";
 import type { AnyLayer, GroupLayer } from "@/lib/ca/types";
 
 export function LayersPanel() {
-  const { doc, selectLayer, addTextLayer, addImageLayerFromFile, addShapeLayer, addGradientLayer, addVideoLayerFromFile, deleteLayer, duplicateLayer, moveLayer, moveLayerInto, updateLayer } = useEditor();
+  const {
+    doc,
+    selectLayer,
+    addTextLayer,
+    addImageLayerFromFile,
+    addShapeLayer,
+    addGradientLayer,
+    addVideoLayerFromFile,
+    deleteLayer,
+    duplicateLayer,
+    moveLayer,
+    moveLayerInto,
+    updateLayer,
+    addEmitterLayer,
+  } = useEditor();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const key = doc?.activeCA ?? 'floating';
@@ -260,6 +274,7 @@ export function LayersPanel() {
             <DropdownMenuItem onSelect={() => addGradientLayer()}>Gradient Layer</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>Image Layer…</DropdownMenuItem>
             <DropdownMenuItem onSelect={() => videoInputRef.current?.click()}>Video Layer…</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => addEmitterLayer()}>Emitter Layer</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <input

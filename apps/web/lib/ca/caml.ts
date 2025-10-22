@@ -1,4 +1,5 @@
-import { AnyLayer, CAProject, GroupLayer, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations } from './types';
+import { CAEmitterCell, CAEmitterLayer } from '@/components/editor/emitter/emitter';
+import { AnyLayer, CAProject, GroupLayer, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations, EmitterLayer } from './types';
 
 const CAML_NS = 'http://www.apple.com/CoreAnimation/1.0';
 
@@ -508,6 +509,61 @@ function parseCAGradientLayer(el: Element): AnyLayer {
   return layer;
 }
 
+function parseCAEmitterLayer(el: Element): AnyLayer {
+  const id = attr(el, 'id') || crypto.randomUUID();
+  const name = attr(el, 'name') || 'Emitter Layer';
+
+  const bounds = parseNumberList(attr(el, 'bounds')); // x y w h
+  const position = parseNumberList(attr(el, 'position')); // x y
+  const anchorPt = parseNumberList(attr(el, 'anchorPoint')); // ax ay in 0..1
+  const emitterPosition = parseNumberList(attr(el, 'emitterPosition'));
+  const emitterSize = parseNumberList(attr(el, 'emitterSize'));
+  const emitterShape = attr(el, 'emitterShape') as 'point' | 'line' | 'rectangle' | 'cuboid' | 'circle' | 'sphere';
+  const emitterCellsEl = directChildByTagNS(el, 'emitterCells');
+  const emitterMode = attr(el, 'emitterMode') as 'volume' | 'outline' | 'surface';
+  const emitterCells = emitterCellsEl
+    ? Array.from(emitterCellsEl.children).map((c) => {
+        let imageSrc: string | undefined;
+        const contents = c.getElementsByTagNameNS(CAML_NS, 'contents')[0];
+        if (contents) {
+          const images = contents.getElementsByTagNameNS(CAML_NS, 'CGImage');
+          if (images && images[0]) {
+            imageSrc = attr(images[0], 'src');
+          } else {
+            const t = (contents.getAttribute('type') || '').toLowerCase();
+            const s = contents.getAttribute('src') || '';
+            if (t === 'cgimage' && s) imageSrc = s;
+          }
+        }
+        const newCell = new CAEmitterCell();
+        newCell.id = String(attr(c, 'id'));
+        newCell.src = imageSrc;
+        newCell.birthRate = Number(attr(c, 'birthRate'));
+        newCell.lifetime = Number(attr(c, 'lifetime'));
+        newCell.velocity = Number(attr(c, 'velocity'));
+        newCell.scale = Number(attr(c, 'scale'));
+        newCell.emissionRange = (Number(attr(c, 'emissionRange')) * 180) / Math.PI;
+        newCell.spin = (Number(attr(c, 'spin')) * 180) / Math.PI;
+        newCell.xAcceleration = Number(attr(c, 'xAcceleration'));
+        newCell.yAcceleration = Number(attr(c, 'yAcceleration'));
+        return newCell;
+      })
+    : [];
+  return {
+    id,
+    name,
+    type: 'emitter',
+    position: { x: position[0] ?? 0, y: position[1] ?? 0 },
+    size: { w: bounds[2] ?? 0, h: bounds[3] ?? 0 },
+    anchorPoint: (anchorPt.length === 2 && (anchorPt[0] !== 0.5 || anchorPt[1] !== 0.5)) ? { x: anchorPt[0], y: anchorPt[1] } : undefined,
+    emitterPosition: { x: emitterPosition[0] ?? 0, y: emitterPosition[1] ?? 0 },
+    emitterSize: { w: emitterSize[0] ?? 0, h: emitterSize[1] ?? 0 },
+    emitterShape,
+    emitterMode,
+    emitterCells,
+  } as AnyLayer;
+}
+
 function parseCALayer(el: Element): AnyLayer {
   const caplayKind = attr(el, 'caplayKind') || attr(el, 'caplay.kind');
   if (caplayKind === 'video') {
@@ -618,16 +674,17 @@ function parseCALayer(el: Element): AnyLayer {
   const sublayersEl = directChildByTagNS(el, 'sublayers');
   const sublayerNodes = sublayersEl
     ? (Array.from(sublayersEl.children) as Element[])
-        .filter((c) => ((c as any).namespaceURI === CAML_NS) && (c.localName === 'CALayer' || c.localName === 'CATextLayer' || c.localName === 'CAGradientLayer'))
+        .filter((c) => ((c as any).namespaceURI === CAML_NS) && (c.localName === 'CALayer' || c.localName === 'CATextLayer' || c.localName === 'CAGradientLayer' || c.localName === 'CAEmitterLayer'))
     : [];
-
-  if (caplayKind === 'image' || caplayKind === 'text' || caplayKind === 'gradient') {
+  
+  if (caplayKind === 'image' || caplayKind === 'text' || caplayKind === 'gradient' || caplayKind === 'emitter') {
     const children: AnyLayer[] = [];
     if (sublayersEl) {
       for (const n of sublayerNodes) {
         if (n.localName === 'CALayer') children.push(parseCALayer(n));
         else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
         else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
+        else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
       }
     }
     const group: GroupLayer = {
@@ -713,6 +770,7 @@ function parseCALayer(el: Element): AnyLayer {
       if (n.localName === 'CALayer') children.push(parseCALayer(n));
       else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
       else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
+      else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
     }
     const normalize = (s: string) => {
       try { s = decodeURIComponent(s); } catch {}
@@ -781,7 +839,7 @@ export function serializeCAML(
   const doc = document.implementation.createDocument(CAML_NS, 'caml', null);
   const caml = doc.documentElement;
   const rootEl = serializeLayer(doc, root, project, wallpaperParallaxGroupsInput);
-  
+
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
   const layerIndex: Record<string, AnyLayer> = {};
@@ -971,8 +1029,15 @@ function setAttr(el: Element, name: string, value: string | number | undefined) 
 function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, wallpaperParallaxGroupsInput?: GyroParallaxDictionary[]): Element {
   const isText = layer.type === 'text';
   const isGradient = layer.type === 'gradient';
+  const isEmitter = layer.type === 'emitter';
   const hasGradientProps = layer.type === 'group' && ((layer as any).gradientType || (layer as any)._displayType === 'gradient');
-  const elementType = isText ? 'CATextLayer' : (isGradient || hasGradientProps) ? 'CAGradientLayer' : 'CALayer';
+  const elementType = isText
+    ? 'CATextLayer'
+    : (isGradient || hasGradientProps)
+      ? 'CAGradientLayer'
+      : isEmitter
+        ? 'CAEmitterLayer'
+        : 'CALayer';
   const el = doc.createElementNS(CAML_NS, elementType);
   setAttr(el, 'id', layer.id);
   setAttr(el, 'name', layer.name);
@@ -1184,6 +1249,37 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     str.setAttribute('type', 'string');
     str.setAttribute('value', (layer as TextLayer).text || '');
     el.appendChild(str);
+  }
+  if (layer.type === 'emitter') {
+    const emitterLayer = layer as EmitterLayer;
+    el.setAttribute('emitterPosition', `${emitterLayer.emitterPosition?.x || 0} ${emitterLayer.emitterPosition?.y || 0}`);
+    el.setAttribute('emitterSize', `${emitterLayer.emitterSize?.w || 0} ${emitterLayer.emitterSize?.h || 0}`);
+    el.setAttribute('emitterShape', emitterLayer.emitterShape || 'point');
+    el.setAttribute('emitterMode', emitterLayer.emitterMode || 'volume');
+    el.setAttribute('renderMode', 'additive');
+    el.setAttribute('birthRate', '1');
+    const rad = (deg: number) => (deg * Math.PI) / 180;
+    const num = (v: number) => String(Number(v));
+    const emitterCells = doc.createElementNS(CAML_NS, 'emitterCells');
+    emitterLayer.emitterCells?.forEach((cell) => {
+      const emitterCell = doc.createElementNS(CAML_NS, 'CAEmitterCell');
+      const contents = doc.createElementNS(CAML_NS, 'contents');
+      const cg = doc.createElementNS(CAML_NS, 'CGImage');
+      setAttr(cg, 'src', cell.src);
+      contents.appendChild(cg);
+      emitterCell.appendChild(contents);
+      emitterCell.setAttribute('id', cell.id);
+      emitterCell.setAttribute('birthRate', num(cell.birthRate));
+      emitterCell.setAttribute('lifetime', num(cell.lifetime));
+      emitterCell.setAttribute('velocity', num(cell.velocity));
+      emitterCell.setAttribute('emissionRange', num(rad(cell.emissionRange)));
+      emitterCell.setAttribute('scale', num(cell.scale));
+      emitterCell.setAttribute('spin', num(rad(cell.spin)));
+      emitterCell.setAttribute('xAcceleration', num(cell.xAcceleration));
+      emitterCell.setAttribute('yAcceleration', num(cell.yAcceleration));
+      emitterCells.appendChild(emitterCell);
+    });
+    el.appendChild(emitterCells);
   }
 
   if (layer.type === 'gradient') {
