@@ -13,15 +13,30 @@ const loadImage = (src: string) =>
     img.src = src;
   });
 
-export function EmitterCanvas({ paused = false, layer: emitterLayer, assets }: { paused?: boolean; layer: EmitterLayer, assets?: Record<string, { dataURL?: string }> }) {
+export function EmitterCanvas({
+  paused = false,
+  layer: emitterLayer,
+  assets,
+  left,
+  top,
+  docWidth,
+  docHeight,
+}: {
+  paused?: boolean;
+  layer: EmitterLayer;
+  assets?: Record<string, { dataURL?: string }>;
+  left: number;
+  top: number;
+  docWidth: number;
+  docHeight: number;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafIdRef = useRef<number>(0);
   const runningRef = useRef(!paused);
   const layerRef = useRef<CAEmitterLayer>(null);
   const startAnimationRef = useRef<(() => void) | null>(null);
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  useEffect(() => { 
+  useEffect(() => {
     runningRef.current = !paused;
     if (!paused && layerRef.current && startAnimationRef.current) {
       startAnimationRef.current();
@@ -33,12 +48,27 @@ export function EmitterCanvas({ paused = false, layer: emitterLayer, assets }: {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
-    ctx.setTransform(1, 0, 0, -1, 0, canvas.height);
+    const geometryFlipped = emitterLayer.geometryFlipped === 1;
+    if (geometryFlipped) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    } else {
+      ctx.setTransform(1, 0, 0, -1, 0, canvas.height);
+    }
+    ctx.translate(
+      emitterLayer.position.x,
+      geometryFlipped ? canvas.height - emitterLayer.position.y : emitterLayer.position.y
+    );
+    ctx.rotate(Math.PI * (emitterLayer.rotation || 0) / 180 * (geometryFlipped ? -1 : 1));
+    ctx.translate(
+      -emitterLayer.size.w / 2,
+      -emitterLayer.size.h / 2
+    );
     const layer = new CAEmitterLayer();
     layer.emitterPosition = emitterLayer.emitterPosition;
     layer.emitterSize = emitterLayer.emitterSize;
     layer.emitterShape = emitterLayer.emitterShape || layer.emitterShape;
     layer.emitterMode = emitterLayer.emitterMode || layer.emitterMode;
+    layer.geometryFlipped = !!emitterLayer.geometryFlipped;
     layerRef.current = layer;
 
     const loadCells = async () => {
@@ -69,7 +99,7 @@ export function EmitterCanvas({ paused = false, layer: emitterLayer, assets }: {
 
     const startAnimation = () => {
       cancelAnimationFrame(rafIdRef.current);
-      
+
       let last = performance.now();
 
       const tick = (now: number) => {
@@ -77,14 +107,16 @@ export function EmitterCanvas({ paused = false, layer: emitterLayer, assets }: {
         const dt = Math.min(0.05, (now - last) / 1000);
         last = now;
 
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
         layerRef.current?.step(dt);
         layerRef.current?.draw(ctx);
 
         rafIdRef.current = requestAnimationFrame(tick);
       };
-      
+
       rafIdRef.current = requestAnimationFrame(tick);
     };
 
@@ -104,17 +136,28 @@ export function EmitterCanvas({ paused = false, layer: emitterLayer, assets }: {
   }, [JSON.stringify(emitterLayer)]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={emitterLayer.size.w}
-      height={emitterLayer.size.h}
+    <div
       style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'block',
-        pointerEvents: 'none',
-        background: 'transparent'
+        width: emitterLayer.size.w,
+        height: emitterLayer.size.h,
+        transform: `rotate(${emitterLayer.rotation}deg)`,
+        transformOrigin: '50% 50% 0',
       }}
-    />
+    >
+      <canvas
+        ref={canvasRef}
+        width={docWidth}
+        height={docHeight}
+        style={{
+          width: docWidth,
+          height: docHeight,
+          position: 'absolute',
+          pointerEvents: 'none',
+          background: 'transparent',
+          left: -left,
+          top: -top,
+        }}
+      />
+    </div>
   );
 }

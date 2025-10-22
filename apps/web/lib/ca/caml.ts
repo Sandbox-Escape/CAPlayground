@@ -521,6 +521,11 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
   const emitterShape = attr(el, 'emitterShape') as 'point' | 'line' | 'rectangle' | 'cuboid' | 'circle' | 'sphere';
   const emitterCellsEl = directChildByTagNS(el, 'emitterCells');
   const emitterMode = attr(el, 'emitterMode') as 'volume' | 'outline' | 'surface';
+  const rotZAttr = attr(el, 'transform.rotation.z');
+  const rotXAttr = attr(el, 'transform.rotation.x');
+  const rotYAttr = attr(el, 'transform.rotation.y');
+  const masksToBoundsAttr = attr(el, 'masksToBounds');
+  const geometryFlippedAttr = attr(el, 'geometryFlipped');
   const emitterCells = emitterCellsEl
     ? Array.from(emitterCellsEl.children).map((c) => {
         let imageSrc: string | undefined;
@@ -555,6 +560,11 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
     type: 'emitter',
     position: { x: position[0] ?? 0, y: position[1] ?? 0 },
     size: { w: bounds[2] ?? 0, h: bounds[3] ?? 0 },
+    rotation: rotZAttr ? ((Number(rotZAttr) * 180) / Math.PI) : undefined,
+    rotationX: rotXAttr ? ((Number(rotXAttr) * 180) / Math.PI) : undefined,
+    rotationY: rotYAttr ? ((Number(rotYAttr) * 180) / Math.PI) : undefined,
+    masksToBounds: masksToBoundsAttr === '1' ? 1 : 0,
+    geometryFlipped: geometryFlippedAttr === '1' ? 1 : 0,
     anchorPoint: (anchorPt.length === 2 && (anchorPt[0] !== 0.5 || anchorPt[1] !== 0.5)) ? { x: anchorPt[0], y: anchorPt[1] } : undefined,
     emitterPosition: { x: emitterPosition[0] ?? 0, y: emitterPosition[1] ?? 0 },
     emitterSize: { w: emitterSize[0] ?? 0, h: emitterSize[1] ?? 0 },

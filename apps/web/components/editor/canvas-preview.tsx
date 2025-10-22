@@ -1222,20 +1222,32 @@ export function CanvasPreview() {
     }
     if (l.type === "emitter") {
       const e = l as EmitterLayer;
-      const style: React.CSSProperties = { ...common, ...bgStyleFor(l), pointerEvents: 'none' };
+      const style: React.CSSProperties = {
+        ...common,
+        ...bgStyleFor(l),
+        ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
+      };
       return (
         <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
           <div
             style={style}
-            // onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
             onTouchStart={isWrappedContent ? undefined : ((e) => {
               if (e.touches.length === 1) {
                 e.preventDefault();
-                // startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
+                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
               }
             })}
           >
-            <EmitterCanvas layer={e} paused={!isAnimationPlaying} assets={assets} />
+            <EmitterCanvas
+              layer={e}
+              paused={!isAnimationPlaying}
+              assets={assets}
+              left={Number(style.left) || 0}
+              top={Number(style.top) || 0}
+              docWidth={doc?.meta.width || 0}
+              docHeight={doc?.meta.height || 0}
+            />
           </div>
         </LayerContextMenu>
       );
@@ -1354,7 +1366,6 @@ export function CanvasPreview() {
   const findById = (layers: AnyLayer[], id: string | null | undefined): AnyLayer | undefined => {
     if (!id) return undefined;
     for (const l of layers) {
-      if (l.type === "emitter") continue;
       if (l.id === id) return l;
       if (l.type === "group") {
         const found = findById((l as GroupLayer).children, id);

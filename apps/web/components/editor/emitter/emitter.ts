@@ -70,6 +70,7 @@ export class CAEmitterLayer {
   emitterDepth: number;
   emitterShape: string;
   emitterMode: string;
+  geometryFlipped: boolean;
   renderMode: string;
   preservesDepth: boolean;
   birthRate: number;
@@ -87,6 +88,7 @@ export class CAEmitterLayer {
     this.emitterDepth = 0;
     this.emitterShape = kCAEmitterLayerShape.point;
     this.emitterMode = kCAEmitterLayerMode.volume;
+    this.geometryFlipped = false;
     this.renderMode = kCAEmitterLayerRenderMode.additive;
     this.preservesDepth = false;
     this.birthRate = 1;
@@ -142,13 +144,13 @@ export class CAEmitterLayer {
       if (p.sprite) {
         const iw = p.sprite.naturalWidth || p.sprite.width || 1;
         const ih = p.sprite.naturalHeight || p.sprite.height || 1;
-        const r = iw / ih;
-        const h = size, w = h * r;
+        const w = iw * p.scale;
+        const h = ih * p.scale;
 
         ctx.save();
         ctx.translate(p.x, p.y);
         if (p.spin !== 0) ctx.rotate(p.rot);
-        ctx.scale(1, -1);
+        if (!this.geometryFlipped) ctx.scale(1, -1);
         ctx.drawImage(p.sprite, -w / 2, -h / 2, w, h);
         ctx.restore();
       } else {
