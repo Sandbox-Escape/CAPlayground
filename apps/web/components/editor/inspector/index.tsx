@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useEditor } from "../editor-context";
 import { useEffect, useMemo, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SquareSlash, Box, Layers, Palette, Type, Image as ImageIcon, Play, PanelLeft, PanelTop, PanelRight, Video, Smartphone, Blend } from "lucide-react";
+import { SquareSlash, Box, Layers, Palette, Type, Image as ImageIcon, Play, PanelLeft, PanelTop, PanelRight, Video, Smartphone, Blend, Cog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { round2, fmt2, fmt0, findById, type TabId } from "./types";
@@ -22,16 +22,17 @@ import { ImageTab } from "./tabs/ImageTab";
 import { VideoTab } from "./tabs/VideoTab";
 import { AnimationsTab } from "./tabs/AnimationsTab";
 import { GyroTab } from "./tabs/GyroTab";
+import { EmitterTab } from "./tabs/EmitterTab";
 
 export function Inspector() {
-  const { doc, setDoc, updateLayer, updateLayerTransient, replaceImageForLayer, isAnimationPlaying, animatedLayers, selectLayer } = useEditor();
+  const { doc, setDoc, updateLayer, updateLayerTransient, replaceImageForLayer, addEmitterCellImage, isAnimationPlaying, animatedLayers, selectLayer } = useEditor();
   const [sidebarPosition, setSidebarPosition] = useLocalStorage<'left' | 'top' | 'right'>('caplay_inspector_tab_position', 'left');
-  
+
   const key = doc?.activeCA ?? 'floating';
   const current = doc?.docs?.[key];
   const isRootSelected = current?.selectedId === '__root__';
   const selectedBase = current ? (isRootSelected ? undefined : findById(current.layers, current.selectedId)) : undefined;
-  
+
   const selectedAnimated = useMemo(() => {
     if (!isAnimationPlaying || !animatedLayers.length || !current?.selectedId) return null;
     return findById(animatedLayers, current.selectedId);
@@ -39,7 +40,7 @@ export function Inspector() {
 
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const selKey = selectedBase ? selectedBase.id : "__none__";
-  
+
   useEffect(() => {
     setInputs({});
   }, [selKey]);
@@ -48,12 +49,12 @@ export function Inspector() {
     const bufKey = `${selKey}:${key}`;
     return inputs[bufKey] !== undefined ? inputs[bufKey] : fallback;
   };
-  
+
   const setBuf = (key: string, val: string) => {
     const bufKey = `${selKey}:${key}`;
     setInputs((prev) => ({ ...prev, [bufKey]: val }));
   };
-  
+
   const clearBuf = (key: string) => {
     const bufKey = `${selKey}:${key}`;
     setInputs((prev) => {
@@ -87,7 +88,7 @@ export function Inspector() {
   })();
 
   const animEnabled: boolean = !!(selectedBase as any)?.animations?.enabled && (selectedBase as any)?.type !== 'video';
-  
+
   const {
     disablePosX,
     disablePosY,
@@ -103,8 +104,8 @@ export function Inspector() {
     return {
       disablePosX: on(kp === 'position' || kp === 'position.x'),
       disablePosY: on(kp === 'position' || kp === 'position.y'),
-      disableRotX: on(kp === 'transform.rotation.x'),
-      disableRotY: on(kp === 'transform.rotation.y'),
+      disableRotX: selectedBase?.type === 'emitter' || on(kp === 'transform.rotation.x'),
+      disableRotY: selectedBase?.type === 'emitter' || on(kp === 'transform.rotation.y'),
       disableRotZ: on(kp === 'transform.rotation.z'),
     };
   }, [selectedBase]);
@@ -112,7 +113,7 @@ export function Inspector() {
   const [activeTab, setActiveTab] = useState<TabId>('geometry');
 
   const tabs = useMemo(() => {
-    const baseTabs = [
+    let baseTabs = [
       { id: 'geometry' as TabId, icon: Box, label: 'Geometry' },
       { id: 'compositing' as TabId, icon: Layers, label: 'Compositing' },
       { id: 'content' as TabId, icon: Palette, label: 'Content' },
@@ -133,20 +134,29 @@ export function Inspector() {
     if (doc?.meta.gyroEnabled) {
       baseTabs.push({ id: 'gyro' as TabId, icon: Smartphone, label: 'Gyro (Parallax)' });
     }
+    if (selected?.type === 'emitter') {
+      baseTabs = [
+        { id: 'geometry' as TabId, icon: Box, label: 'Geometry' },
+        { id: 'compositing' as TabId, icon: Layers, label: 'Compositing' },
+        { id: 'emitter' as TabId, icon: Cog, label: 'Emitter' },
+      ]
+    }
     return baseTabs;
   }, [selected?.type, doc?.meta.gyroEnabled]);
 
   useEffect(() => {
-    if (selected?.type === 'text' && (activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video')) {
+    if (selected?.type === 'text' && (activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('text');
-    } else if (selected?.type === 'gradient' && (activeTab === 'text' || activeTab === 'image' || activeTab === 'video')) {
+    } else if (selected?.type === 'gradient' && (activeTab === 'text' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('gradient');
-    } else if (selected?.type === 'image' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'video')) {
+    } else if (selected?.type === 'image' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('image');
-    } else if (selected?.type === 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image')) {
+    } else if (selected?.type === 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'emitter')) {
       setActiveTab('video');
-    } else if (selected?.type !== 'text' && selected?.type !== 'gradient' && selected?.type !== 'image' && selected?.type !== 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video')) {
+    } else if (selected?.type !== 'text' && selected?.type !== 'emitter' && selected?.type !== 'gradient' && selected?.type !== 'image' && selected?.type !== 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
       setActiveTab('geometry');
+    } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content'].includes(activeTab))) {
+      setActiveTab('emitter');
     }
   }, [selected?.type, activeTab]);
 
@@ -169,26 +179,26 @@ export function Inspector() {
             <div className="space-y-1">
               <Label htmlFor="root-w">Width</Label>
               <Input id="root-w" type="number" step="1" value={String(widthVal)}
-                onChange={(e)=>{
+                onChange={(e) => {
                   const n = Number(e.target.value);
                   if (!Number.isFinite(n)) return;
-                  setDoc((prev)=> prev ? ({...prev, meta: { ...prev.meta, width: Math.max(0, Math.round(n)) }}) : prev);
+                  setDoc((prev) => prev ? ({ ...prev, meta: { ...prev.meta, width: Math.max(0, Math.round(n)) } }) : prev);
                 }} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="root-h">Height</Label>
               <Input id="root-h" type="number" step="1" value={String(heightVal)}
-                onChange={(e)=>{
+                onChange={(e) => {
                   const n = Number(e.target.value);
                   if (!Number.isFinite(n)) return;
-                  setDoc((prev)=> prev ? ({...prev, meta: { ...prev.meta, height: Math.max(0, Math.round(n)) }}) : prev);
+                  setDoc((prev) => prev ? ({ ...prev, meta: { ...prev.meta, height: Math.max(0, Math.round(n)) } }) : prev);
                 }} />
             </div>
             <div className="space-y-1 col-span-2">
               <Label>Flip Geometry</Label>
               <div className="flex items-center gap-2 h-8">
                 <Switch checked={gf === 1}
-                  onCheckedChange={(checked)=> setDoc((prev)=> prev ? ({...prev, meta: { ...prev.meta, geometryFlipped: checked ? 1 : 0 }}) : prev)} />
+                  onCheckedChange={(checked) => setDoc((prev) => prev ? ({ ...prev, meta: { ...prev.meta, geometryFlipped: checked ? 1 : 0 } }) : prev)} />
                 <span className="text-xs text-muted-foreground">When on, origin becomes top-left and Y increases down.</span>
               </div>
             </div>
@@ -368,6 +378,14 @@ export function Inspector() {
             <VideoTab {...tabProps} />
           )}
 
+          {activeTab === 'emitter' && selected.type === "emitter" && (
+            <EmitterTab
+              {...tabProps}
+              addEmitterCellImage={addEmitterCellImage}
+              assets={current?.assets}
+            />
+          )}
+
           {activeTab === 'animations' && (
             <AnimationsTab
               {...tabProps}
@@ -384,7 +402,7 @@ export function Inspector() {
             />
           )}
         </div>
-        
+
         {sidebarPosition === 'right' && (
           <div className="w-14 border-l flex flex-col gap-2 p-2 shrink-0">
             {tabs.map((tab) => {

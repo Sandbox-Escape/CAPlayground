@@ -8,11 +8,27 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import type { ReactNode, MouseEvent as ReactMouseEvent } from "react";
 import { useEditor } from "./editor-context";
 import { LayerContextMenu } from "./layer-context-menu";
-import type { AnyLayer, GroupLayer, ShapeLayer } from "@/lib/ca/types";
+import type { AnyLayer, EmitterLayer, GroupLayer, ShapeLayer } from "@/lib/ca/types";
+import { EmitterCanvas } from "./emitter/EmitterCanvas";
 
 export function CanvasPreview() {
   const ref = useRef<HTMLDivElement | null>(null);
-  const { doc, updateLayer, updateLayerTransient, selectLayer, copySelectedLayer, pasteFromClipboard, addImageLayerFromBlob, addImageLayerFromFile, addVideoLayerFromFile, isAnimationPlaying, setIsAnimationPlaying, animatedLayers, setAnimatedLayers, moveLayer, deleteLayer } = useEditor();
+  const {
+    doc,
+    updateLayer,
+    updateLayerTransient,
+    selectLayer,
+    copySelectedLayer,
+    pasteFromClipboard,
+    addImageLayerFromBlob,
+    addImageLayerFromFile,
+    addVideoLayerFromFile,
+    isAnimationPlaying,
+    setIsAnimationPlaying,
+    setAnimatedLayers,
+    moveLayer,
+    deleteLayer,
+  } = useEditor();
   const docRef = useRef<typeof doc>(doc);
   useEffect(() => { docRef.current = doc; }, [doc]);
   const [size, setSize] = useState({ w: 600, h: 400 });
@@ -570,6 +586,7 @@ export function CanvasPreview() {
         const anim: any = (l as any).animations;
         if (anim && anim.enabled) return true;
         if ((l as any).type === 'video') return true;
+        if ((l as any).type === 'emitter') return true;
         if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
           if (check((l as any).children as AnyLayer[])) return true;
         }
@@ -1200,6 +1217,38 @@ export function CanvasPreview() {
               }
             })}
           />
+        </LayerContextMenu>
+      );
+    }
+    if (l.type === "emitter") {
+      const e = l as EmitterLayer;
+      const style: React.CSSProperties = {
+        ...common,
+        ...bgStyleFor(l),
+        ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
+      };
+      return (
+        <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
+          <div
+            style={style}
+            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+            onTouchStart={isWrappedContent ? undefined : ((e) => {
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
+              }
+            })}
+          >
+            <EmitterCanvas
+              layer={e}
+              paused={!isAnimationPlaying}
+              assets={assets}
+              left={Number(style.left) || 0}
+              top={Number(style.top) || 0}
+              docWidth={doc?.meta.width || 0}
+              docHeight={doc?.meta.height || 0}
+            />
+          </div>
         </LayerContextMenu>
       );
     }

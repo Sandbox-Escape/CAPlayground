@@ -1,3 +1,5 @@
+import { CAEmitterCell } from "@/components/editor/emitter/emitter";
+
 export type Vec2 = { x: number; y: number };
 export type Size = { w: number; h: number };
 
@@ -79,6 +81,16 @@ export type VideoLayer = LayerBase & {
   calculationMode?: 'linear' | 'discrete';
 };
 
+export type EmitterLayer = LayerBase & {
+  type: 'emitter';
+  emitterPosition: Vec2;
+  emitterSize: Size;
+  emitterShape: 'point' | 'line' | 'rectangle' | 'cuboid' | 'circle' | 'sphere';
+  emitterMode: 'volume' | 'outline' | 'surface';
+  emitterCells: CAEmitterCell[];
+  renderMode: 'unordered' | 'additive';
+};
+
 export type GradientColor = {
   color: string;
   opacity: number;
@@ -92,7 +104,14 @@ export type GradientLayer = LayerBase & {
   colors: GradientColor[];
 };
 
-export type AnyLayer = ImageLayer | TextLayer | ShapeLayer | GroupLayer | VideoLayer | GradientLayer;
+export type AnyLayer =
+  ImageLayer |
+  TextLayer |
+  ShapeLayer |
+  GroupLayer |
+  VideoLayer |
+  GradientLayer |
+  EmitterLayer;
 
 export type CAAsset = {
   path: string;
