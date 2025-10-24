@@ -128,6 +128,26 @@ export function EmitterTab({
           }}
         />
       </div>
+      <div className="space-y-1 col-span-2">
+        <Label>Render Mode</Label>
+        <Select
+          value={((selected as any)?.renderMode ?? 'unordered') as any}
+          onValueChange={(v) => {
+            const renderMode = v;
+            const current = (selected as any)?.renderMode;
+            if (current === renderMode) return;
+            updateLayer(selected.id, { ...selected, renderMode } as any);
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs w-full">
+            <SelectValue placeholder="Select render mode" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unordered">unordered</SelectItem>
+            <SelectItem value="additive">additive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div className="space-y-1">
         <Label>Shape</Label>
         <Select
@@ -140,7 +160,7 @@ export function EmitterTab({
           }}
         >
           <SelectTrigger className="h-8 text-xs w-full">
-            <SelectValue placeholder="Select key path" />
+            <SelectValue placeholder="Select emitter shape" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="point">point</SelectItem>
@@ -160,7 +180,7 @@ export function EmitterTab({
           }}
         >
           <SelectTrigger className="h-8 text-xs w-full">
-            <SelectValue placeholder="Select key path" />
+            <SelectValue placeholder="Select emitter mode" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="volume">volume</SelectItem>
@@ -205,13 +225,13 @@ export function EmitterTab({
                     <Input
                       type="number"
                       step="1"
-                      value={getBuf('emitterCells[' + i + '].birthRate', fmt0(cell.birthRate))}
+                      value={getBuf('emitterCells[' + i + '].birthRate', fmt2(cell.birthRate))}
                       disabled={inState}
                       onChange={(e) => {
                         setBuf('emitterCells[' + i + '].birthRate', e.target.value);
                         const v = e.target.value.trim();
                         if (v === "") return;
-                        const num = Math.round(Number(v));
+                        const num = Number(v);
                         const cells = selected.emitterCells?.slice() || [];
                         cells[i] = { ...cell, birthRate: num } as any;
                         if (Number.isFinite(num)) updateLayerTransient(selected.id, { emitterCells: cells as any } as any);
@@ -219,7 +239,7 @@ export function EmitterTab({
                       onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); e.preventDefault(); } }}
                       onBlur={(e) => {
                         const v = e.target.value.trim();
-                        const num = v === "" ? 0 : Math.round(Number(v));
+                        const num = v === "" ? 0 : Number(v);
                         const cells = selected.emitterCells?.slice() || [];
                         cells[i] = { ...cell, birthRate: num } as any;
                         updateLayer(

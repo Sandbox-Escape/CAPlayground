@@ -518,6 +518,7 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
   const anchorPt = parseNumberList(attr(el, 'anchorPoint')); // ax ay in 0..1
   const emitterPosition = parseNumberList(attr(el, 'emitterPosition'));
   const emitterSize = parseNumberList(attr(el, 'emitterSize'));
+  const renderMode = attr(el, 'renderMode') as 'unordered' | 'additive';
   const emitterShape = attr(el, 'emitterShape') as 'point' | 'line' | 'rectangle' | 'cuboid' | 'circle' | 'sphere';
   const emitterCellsEl = directChildByTagNS(el, 'emitterCells');
   const emitterMode = attr(el, 'emitterMode') as 'volume' | 'outline' | 'surface';
@@ -526,6 +527,7 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
   const rotYAttr = attr(el, 'transform.rotation.y');
   const masksToBoundsAttr = attr(el, 'masksToBounds');
   const geometryFlippedAttr = attr(el, 'geometryFlipped');
+  const transformAttr = attr(el, 'transform');
   const emitterCells = emitterCellsEl
     ? Array.from(emitterCellsEl.children).map((c) => {
         let imageSrc: string | undefined;
@@ -554,15 +556,46 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
         return newCell;
       })
     : [];
+
+  let tRotZ: number | undefined;
+  let tRotX: number | undefined;
+  let tRotY: number | undefined;
+  if (transformAttr && /rotate\(/i.test(transformAttr)) {
+    try {
+      const rx = /rotate\(([^)]+)\)/gi;
+      let m: RegExpExecArray | null;
+      while ((m = rx.exec(transformAttr)) !== null) {
+        const inside = m[1].trim();
+        const parts = inside.split(/\s*,\s*/);
+        const angleStr = parts[0].trim();
+        const angle = parseFloat(angleStr.replace(/deg/i, '').trim());
+        const deg = Number.isFinite(angle) ? angle : 0;
+        if (parts.length >= 4) {
+          const ax = parseFloat(parts[1]);
+          const ay = parseFloat(parts[2]);
+          const az = parseFloat(parts[3]);
+          if (Math.abs(ax - 1) < 1e-6 && Math.abs(ay) < 1e-6 && Math.abs(az) < 1e-6) {
+            tRotX = deg;
+          } else if (Math.abs(ay - 1) < 1e-6 && Math.abs(ax) < 1e-6 && Math.abs(az) < 1e-6) {
+            tRotY = deg;
+          } else if (Math.abs(az - 1) < 1e-6 && Math.abs(ax) < 1e-6 && Math.abs(ay) < 1e-6) {
+            tRotZ = deg;
+          }
+        } else {
+          tRotZ = deg;
+        }
+      }
+    } catch {}
+  }
   return {
     id,
     name,
     type: 'emitter',
     position: { x: position[0] ?? 0, y: position[1] ?? 0 },
     size: { w: bounds[2] ?? 0, h: bounds[3] ?? 0 },
-    rotation: rotZAttr ? ((Number(rotZAttr) * 180) / Math.PI) : undefined,
-    rotationX: rotXAttr ? ((Number(rotXAttr) * 180) / Math.PI) : undefined,
-    rotationY: rotYAttr ? ((Number(rotYAttr) * 180) / Math.PI) : undefined,
+    rotation: (rotZAttr ? ((Number(rotZAttr) * 180) / Math.PI) : undefined) ?? tRotZ,
+    rotationX: (rotXAttr ? ((Number(rotXAttr) * 180) / Math.PI) : undefined) ?? tRotX,
+    rotationY: (rotYAttr ? ((Number(rotYAttr) * 180) / Math.PI) : undefined) ?? tRotY,
     masksToBounds: masksToBoundsAttr === '1' ? 1 : 0,
     geometryFlipped: geometryFlippedAttr === '1' ? 1 : 0,
     anchorPoint: (anchorPt.length === 2 && (anchorPt[0] !== 0.5 || anchorPt[1] !== 0.5)) ? { x: anchorPt[0], y: anchorPt[1] } : undefined,
@@ -571,6 +604,7 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
     emitterShape,
     emitterMode,
     emitterCells,
+    renderMode,
   } as AnyLayer;
 }
 
@@ -1266,12 +1300,12 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     el.setAttribute('emitterSize', `${emitterLayer.emitterSize?.w || 0} ${emitterLayer.emitterSize?.h || 0}`);
     el.setAttribute('emitterShape', emitterLayer.emitterShape || 'point');
     el.setAttribute('emitterMode', emitterLayer.emitterMode || 'volume');
-    el.setAttribute('renderMode', 'additive');
+    el.setAttribute('renderMode', emitterLayer.renderMode || 'unordered');
     el.setAttribute('birthRate', '1');
     const rad = (deg: number) => (deg * Math.PI) / 180;
     const num = (v: number) => String(Number(v));
     const emitterCells = doc.createElementNS(CAML_NS, 'emitterCells');
-    emitterLayer.emitterCells?.forEach((cell) => {
+    emitterLayer.emitterCells?.forEach((cell, index) => {
       const emitterCell = doc.createElementNS(CAML_NS, 'CAEmitterCell');
       const contents = doc.createElementNS(CAML_NS, 'contents');
       const cg = doc.createElementNS(CAML_NS, 'CGImage');
@@ -1279,6 +1313,7 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
       contents.appendChild(cg);
       emitterCell.appendChild(contents);
       emitterCell.setAttribute('id', cell.id);
+      emitterCell.setAttribute('name', `Cell ${index + 1}`);
       emitterCell.setAttribute('birthRate', num(cell.birthRate));
       emitterCell.setAttribute('lifetime', num(cell.lifetime));
       emitterCell.setAttribute('velocity', num(cell.velocity));

@@ -88,6 +88,7 @@ export type EmitterLayer = LayerBase & {
   emitterShape: 'point' | 'line' | 'rectangle' | 'cuboid' | 'circle' | 'sphere';
   emitterMode: 'volume' | 'outline' | 'surface';
   emitterCells: CAEmitterCell[];
+  renderMode: 'unordered' | 'additive';
 };
 
 export type GradientColor = {

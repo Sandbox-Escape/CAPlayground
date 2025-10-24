@@ -38,9 +38,25 @@ export function EmitterCanvas({
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   useEffect(() => {
     runningRef.current = !paused;
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') {
+        runningRef.current = false;
+      } else {
+        runningRef.current = !paused;
+        if (!paused && layerRef.current && startAnimationRef.current) {
+          startAnimationRef.current();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+
     if (!paused && layerRef.current && startAnimationRef.current) {
       startAnimationRef.current();
     }
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [paused]);
 
   useEffect(() => {
@@ -69,6 +85,7 @@ export function EmitterCanvas({
     layer.emitterShape = emitterLayer.emitterShape || layer.emitterShape;
     layer.emitterMode = emitterLayer.emitterMode || layer.emitterMode;
     layer.geometryFlipped = !!emitterLayer.geometryFlipped;
+    layer.renderMode = emitterLayer.renderMode || layer.renderMode;
     layerRef.current = layer;
 
     const loadCells = async () => {
@@ -124,14 +141,8 @@ export function EmitterCanvas({
 
     loadCells();
 
-    const onVis = () => {
-      runningRef.current = document.visibilityState === 'visible';
-    };
-    document.addEventListener('visibilitychange', onVis);
-
     return () => {
       cancelAnimationFrame(rafIdRef.current);
-      document.removeEventListener('visibilitychange', onVis);
     };
   }, [JSON.stringify(emitterLayer)]);
 

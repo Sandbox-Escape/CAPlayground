@@ -2,7 +2,7 @@ import { Size, Vec2 } from "@/lib/ca/types";
 
 export const kCAEmitterLayerShape = { point: 'point', line: 'line', rectangle: 'rectangle' };
 export const kCAEmitterLayerMode = { volume: 'volume', outline: 'outline', surface: 'surface' };
-export const kCAEmitterLayerRenderMode = { sourceOver: 'sourceOver', additive: 'additive' };
+export const kCAEmitterLayerRenderMode = { unordered: 'unordered', additive: 'additive' };
 
 export class CAEmitterCell {
   id: string;
@@ -89,7 +89,7 @@ export class CAEmitterLayer {
     this.emitterShape = kCAEmitterLayerShape.point;
     this.emitterMode = kCAEmitterLayerMode.volume;
     this.geometryFlipped = false;
-    this.renderMode = kCAEmitterLayerRenderMode.additive;
+    this.renderMode = kCAEmitterLayerRenderMode.unordered;
     this.preservesDepth = false;
     this.birthRate = 1;
     this.lifetime = 1;
