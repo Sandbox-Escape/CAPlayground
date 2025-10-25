@@ -2,6 +2,9 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Minus, Plus, Crosshair, Square, Crop, Clock } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
@@ -45,7 +48,9 @@ export function CanvasPreview() {
   const [clipToCanvas, setClipToCanvas] = useLocalStorage<boolean>("caplay_preview_clip", false);
   const [showBackground] = useLocalStorage<boolean>("caplay_preview_show_background", true);
   const [showClockOverlay, setShowClockOverlay] = useLocalStorage<boolean>("caplay_preview_clock_overlay", false);
+  const [clockDepthEffect, setClockDepthEffect] = useLocalStorage<boolean>("caplay_preview_clock_depth", false);
   const [showAnchorPoint, setShowAnchorPoint] = useLocalStorage<boolean>("caplay_preview_anchor_point", false);
+  const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const panDragRef = useRef<{
     startClientX: number;
     startClientY: number;
@@ -2137,7 +2142,7 @@ export function CanvasPreview() {
                   backgroundSize: 'contain',
                   backgroundPosition: 'center',
                   backgroundRepeat: 'no-repeat',
-                  zIndex: 500,
+                  zIndex: clockDepthEffect ? 50 : 500,
                 }}
               />
             );
@@ -2145,7 +2150,7 @@ export function CanvasPreview() {
           return null;
         })()}
         {currentKey === 'floating' && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 1000 }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: clockDepthEffect ? 1000 : 100 }}>
             {showBackground 
               ? renderedLayers.slice(backgroundLayers.length).map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))
               : renderedLayers.map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))
@@ -2200,18 +2205,51 @@ export function CanvasPreview() {
           
           if (isMatchingAspectRatio) {
             return (
-              <Button
-                type="button"
-                size="icon"
-                variant={showClockOverlay ? "default" : "outline"}
-                aria-pressed={showClockOverlay}
-                aria-label="Toggle clock overlay"
-                title="Clock"
-                onClick={() => setShowClockOverlay((v: boolean) => !v)}
-                className={`h-8 w-8 ${showClockOverlay ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-              >
-                <Clock className="h-4 w-4" />
-              </Button>
+              <Popover open={clockMenuOpen} onOpenChange={setClockMenuOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant={showClockOverlay ? "default" : "outline"}
+                    aria-pressed={showClockOverlay}
+                    aria-label="Clock overlay settings"
+                    title="Clock"
+                    className={`h-8 w-8 ${showClockOverlay ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+                  >
+                    <Clock className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56" align="end" side="top" sideOffset={8}>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="clock-overlay" className="text-sm font-medium cursor-pointer">
+                        Show Clock
+                      </Label>
+                      <Switch
+                        id="clock-overlay"
+                        checked={showClockOverlay}
+                        onCheckedChange={setShowClockOverlay}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="clock-depth" className="text-sm font-medium cursor-pointer">
+                        Depth Effect
+                      </Label>
+                      <Switch
+                        id="clock-depth"
+                        checked={clockDepthEffect}
+                        onCheckedChange={setClockDepthEffect}
+                        disabled={!showClockOverlay}
+                      />
+                    </div>
+                    <div className="text-xs text-muted-foreground pt-2 border-t">
+                      {clockDepthEffect 
+                        ? "Floating layers appear above clock"
+                        : "Clock appears above all layers"}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             );
           }
           return null;
