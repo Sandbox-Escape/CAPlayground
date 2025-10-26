@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { AnyLayer, CAProject, GroupLayer, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer } from "@/lib/ca/types";
+import type { AnyLayer, CAProject, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer, TransformLayer } from "@/lib/ca/types";
 import { serializeCAML } from "@/lib/ca/caml";
 import { getProject, listFiles, putBlobFile, putBlobFilesBatch, putTextFile } from "@/lib/storage";
 import {
@@ -13,8 +13,7 @@ import {
   insertBeforeInTree,
   deleteInTree,
   containsId,
-  insertIntoGroupInTree,
-  wrapAsGroup,
+  insertIntoSelected,
 } from "@/lib/editor/layer-utils";
 import { sanitizeFilename, dataURLToBlob } from "@/lib/editor/file-utils";
 import { CAEmitterCell } from "./emitter/emitter";
@@ -60,6 +59,7 @@ export type EditorContextValue = {
   addGradientLayer: () => void;
   addVideoLayerFromFile: (file: File) => Promise<void>;
   addEmitterLayer: () => void;
+  addTransformLayer: () => void;
   removeEmitterCell: (layerId: string, index: number) => void;
   updateLayer: (id: string, patch: Partial<AnyLayer>) => void;
   updateLayerTransient: (id: string, patch: Partial<AnyLayer>) => void;
@@ -69,7 +69,6 @@ export type EditorContextValue = {
   pasteFromClipboard: (payload?: any) => void;
   duplicateLayer: (id?: string) => void;
   moveLayer: (sourceId: string, beforeId: string | null) => void;
-  moveLayerInto: (sourceId: string, targetGroupId: string) => void;
   persist: () => void;
   undo: () => void;
   redo: () => void;
@@ -190,7 +189,7 @@ export function EditorProvider({
               const root = parseCAML(camlContent);
               if (root) {
                 const rootLayer = root as any;
-                layers = rootLayer?.type === 'group' && Array.isArray(rootLayer.children) ? rootLayer.children : [rootLayer];
+                layers = rootLayer?.name === 'Root Layer' && Array.isArray(rootLayer.children) ? rootLayer.children : [rootLayer];
                 states = parseStates(main.data);
                 stateOverrides = parseStateOverrides(main.data) as any;
                 if (caType === 'wallpaper') {
@@ -198,6 +197,24 @@ export function EditorProvider({
                 }
               }
             } catch {}
+          }
+          if (!main && isGyro) {
+            layers.push({
+              name: 'BACKGROUND',
+              id: 'background',
+              type: 'basic',
+              position: { x: meta.width / 2, y: meta.height / 2 },
+              size: { w: meta.width, h: meta.height },
+              children: [],
+            })
+            layers.push({
+              name: 'FLOATING',
+              id: 'floating',
+              type: 'basic',
+              position: { x: meta.width / 2, y: meta.height / 2 },
+              size: { w: meta.width, h: meta.height },
+              children: [],
+            })
           }
           const findAssetBindings = (layers: AnyLayer[], filename: string): string[] => {
             const matches: string[] = [];
@@ -228,8 +245,8 @@ export function EditorProvider({
                     const frameIndex = Number(indexPart);
                     if (!Number.isNaN(frameIndex)) matches.push(`${layer.id}_frame_${frameIndex}`);
                   }
-                } else if (layer.type === "group") {
-                  walk((layer as GroupLayer).children);
+                } else if (layer.children?.length) {
+                  walk(layer.children);
                 } else if (layer.type === "emitter") {
                   const emitter = layer as EmitterLayer;
                   emitter.emitterCells?.forEach((cell) => {
@@ -278,9 +295,8 @@ export function EditorProvider({
               }
               return l;
             }
-            if ((l as any).type === 'group') {
-              const g = l as GroupLayer;
-              return { ...g, children: applyAssetSrc(g.children) } as AnyLayer;
+            if (l.children?.length) {
+              return { ...l, children: applyAssetSrc(l.children) } as AnyLayer;
             }
             return l;
           });
@@ -495,28 +511,27 @@ export function EditorProvider({
               });
               return { ...l, emitterCells: newCells } as EmitterLayer;
             }
-            if (l.type === 'group') {
-              const g = l as GroupLayer;
-              return { ...g, children: g.children.map(mapOne) } as AnyLayer;
+            if (l.children?.length) {
+              return { ...l, children: l.children.map(mapOne) } as AnyLayer;
             }
             return l;
           };
           return layers.map(mapOne);
         };
-        
-        const rootBase = {
+        const rootLayer = caDoc.layers.find((l) => l.name === 'Root Layer');
+        const rootBase = rootLayer || {
           id: snapshot.meta.id,
           name: 'Root Layer',
-          type: 'group',
+          type: 'basic',
           position: { x: Math.round((snapshot.meta.width || 0) / 2), y: Math.round((snapshot.meta.height || 0) / 2) },
           size: { w: snapshot.meta.width || 0, h: snapshot.meta.height || 0 },
           geometryFlipped: (snapshot.meta as any).geometryFlipped ?? 0,
           children: toCamlLayers((caDoc.layers as AnyLayer[]) || [], caDoc.assets),
         };
         
-        const root: GroupLayer = key === 'floating' 
-          ? rootBase as GroupLayer
-          : { ...rootBase, backgroundColor: snapshot.meta.background } as GroupLayer;
+        const root = key === 'floating' 
+          ? rootBase
+          : { ...rootBase, backgroundColor: snapshot.meta.background };
 
         const mapVariantToBaseOverrides = (docPart: CADoc): Record<string, Array<{ targetId: string; keyPath: string; value: string | number }>> => {
           const baseStates = ["Locked", "Unlock", "Sleep"] as const;
@@ -613,23 +628,6 @@ export function EditorProvider({
     });
   }, []);
 
-  const moveLayerInto = useCallback((sourceId: string, targetGroupId: string) => {
-    if (!sourceId || !targetGroupId || sourceId === targetGroupId) return;
-    setDoc((prev) => {
-      if (!prev) return prev;
-      const key = prev.activeCA;
-      const cur = prev.docs[key];
-      const removedRes = removeFromTree(cur.layers, sourceId);
-      const node = removedRes.removed;
-      if (!node) return prev;
-      const ins = insertIntoGroupInTree(removedRes.layers, targetGroupId, node);
-      const nextLayers = ins.layers;
-      pushHistory(prev);
-      const nextCur = { ...cur, layers: nextLayers } as any;
-      return { ...prev, docs: { ...prev.docs, [key]: nextCur } } as any;
-    });
-  }, [pushHistory]);
-
   const addBase = useCallback((name: string): LayerBase => ({
     id: genId(),
     name,
@@ -643,12 +641,13 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
-      const canvasW = prev.meta.width || 390;
-      const canvasH = prev.meta.height || 844;
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const parentLayer = findById(cur.layers, cur.selectedId)
       const layer: TextLayer = {
         ...addBase("Text Layer"),
         type: "text",
-        position: { x: canvasW / 2, y: canvasH / 2 },
+        position: { x: (parentLayer?.size.w || 0) / 2, y: (parentLayer?.size.h || 0) / 2 },
         text: "Text Layer",
         color: "#111827",
         fontSize: 16,
@@ -656,24 +655,10 @@ export function EditorProvider({
         fontFamily: "SFProText-Regular",
         wrapped: 1,
       };
-      const key = prev.activeCA;
-      const cur = prev.docs[key];
-      let nextLayers: AnyLayer[] = cur.layers;
+
       const selId = cur.selectedId || null;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
       const next = { ...cur, layers: nextLayers, selectedId: layer.id };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -701,6 +686,8 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
       const canvasW = prev.meta.width || 390;
       const canvasH = prev.meta.height || 844;
       const aspectRatio = imgW / imgH;
@@ -715,8 +702,9 @@ export function EditorProvider({
         h = imgH * scale;
       }
       
-      const x = canvasW / 2;
-      const y = canvasH / 2;
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || 0) / 2;
+      const y = (parentLayer?.size.h || 0) / 2;
       
       const layer: ImageLayer = {
         ...addBase(filename || "Pasted Image"),
@@ -726,26 +714,11 @@ export function EditorProvider({
         src: dataURL,
         fit: "fill",
       };
-      const key = prev.activeCA;
-      const cur = prev.docs[key];
+
       const assets = { ...(cur.assets || {}) };
       assets[layer.id] = { filename: sanitizeFilename(filename || `pasted-${Date.now()}.png`), dataURL };
-      let nextLayers: AnyLayer[] = cur.layers;
       const selId = cur.selectedId || null;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
       const next = { ...cur, layers: nextLayers, selectedId: layer.id, assets };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -783,8 +756,8 @@ export function EditorProvider({
           if (l.id === layerId && l.type === "image") {
             return { ...l, src: dataURL } as AnyLayer;
           }
-          if (l.type === "group") {
-            return { ...(l as GroupLayer), children: updateRec((l as GroupLayer).children) } as AnyLayer;
+          if (l.children?.length) {
+            return { ...l, children: updateRec(l.children) } as AnyLayer;
           }
           return l;
         });
@@ -868,31 +841,22 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || 0) / 2;
+      const y = (parentLayer?.size.h || 0) / 2;
+      
       const layer: ImageLayer = {
         ...addBase("Image Layer"),
         type: "image",
+        position: { x, y },
         size: { w: 200, h: 120 },
         src: src ?? "https://placehold.co/200x120/png",
         fit: "fill",
       };
-      const key = prev.activeCA;
-      const cur = prev.docs[key];
-      let nextLayers: AnyLayer[] = cur.layers;
       const selId = cur.selectedId || null;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
       const next = { ...cur, layers: nextLayers, selectedId: layer.id };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -919,7 +883,8 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
-      
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
       const canvasW = prev.meta.width || 390;
       const canvasH = prev.meta.height || 844;
       const aspectRatio = imgW / imgH;
@@ -933,10 +898,10 @@ export function EditorProvider({
         w = imgW * scale;
         h = imgH * scale;
       }
-      
-      const x = canvasW / 2;
-      const y = canvasH / 2;
-      
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || 0) / 2;
+      const y = (parentLayer?.size.h || 0) / 2;
+
       const layer: ImageLayer = {
         ...addBase(file.name || "Image Layer"),
         type: "image",
@@ -945,26 +910,11 @@ export function EditorProvider({
         src: dataURL,
         fit: "fill",
       };
-      const key = prev.activeCA;
-      const cur = prev.docs[key];
+
       const assets = { ...(cur.assets || {}) };
       assets[layer.id] = { filename: sanitizeFilename(file.name) || `image-${Date.now()}.png`, dataURL };
-      let nextLayers: AnyLayer[] = cur.layers;
       const selId = cur.selectedId || null;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
       const next = { ...cur, layers: nextLayers, selectedId: layer.id, assets };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -983,12 +933,13 @@ export function EditorProvider({
       }
       lastAddRef.current = { key: sig, ts: now };
       pushHistory(prev);
-      const canvasW = prev.meta.width || 390;
-      const canvasH = prev.meta.height || 844;
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || 0) / 2;
+      const y = (parentLayer?.size.h || 0) / 2;
       const layer: any = {
         ...addBase("Gradient Layer"),
         type: "gradient",
-        position: { x: canvasW / 2, y: canvasH / 2 },
+        position: { x, y },
         size: { w: 200, h: 200 },
         gradientType: "axial",
         startPoint: { x: 0, y: 0 },
@@ -998,21 +949,8 @@ export function EditorProvider({
           { color: "#000000", opacity: 1 },
         ],
       };
-      let nextLayers: AnyLayer[] = cur.layers;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
       return {
         ...prev,
         docs: {
@@ -1036,12 +974,13 @@ export function EditorProvider({
       }
       lastAddRef.current = { key: sig, ts: now };
       pushHistory(prev);
-      const canvasW = prev.meta.width || 390;
-      const canvasH = prev.meta.height || 844;
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || 0) / 2;
+      const y = (parentLayer?.size.h || 0) / 2;
       const layer: ShapeLayer = {
         ...addBase("Shape Layer"),
         type: "shape",
-        position: { x: canvasW / 2, y: canvasH / 2 },
+        position: { x, y },
         size: { w: 120, h: 120 },
         shape,
         fill: "#60a5fa",
@@ -1049,21 +988,8 @@ export function EditorProvider({
         backgroundOpacity: 1,
         radius: shape === "rounded-rect" ? 8 : undefined,
       };
-      let nextLayers: AnyLayer[] = cur.layers;
-      if (!selId || selId === '__root__') {
-        nextLayers = [...cur.layers, layer];
-      } else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') {
-          nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        } else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else {
-          nextLayers = [...cur.layers, layer];
-        }
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
       const next = { ...cur, layers: nextLayers, selectedId: layer.id };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -1126,6 +1052,8 @@ export function EditorProvider({
       setDoc((prev) => {
         if (!prev) return prev;
         pushHistory(prev);
+        const key = prev.activeCA;
+        const cur = prev.docs[key];
         const canvasW = prev.meta.width || 390;
         const canvasH = prev.meta.height || 844;
         let w = width;
@@ -1137,8 +1065,9 @@ export function EditorProvider({
           w = width * scale;
           h = height * scale;
         }
-        const x = canvasW / 2;
-        const y = canvasH / 2;
+        const parentLayer = findById(cur.layers, cur.selectedId)
+        const x = (parentLayer?.size.w || 0) / 2;
+        const y = (parentLayer?.size.h || 0) / 2;
         const layer: VideoLayer = {
           ...addBase(file.name || 'Video Layer'),
           id: layerId,
@@ -1152,25 +1081,14 @@ export function EditorProvider({
           framePrefix,
           frameExtension,
         };
-        const key = prev.activeCA;
-        const cur = prev.docs[key];
         const assets = { ...(cur.assets || {}) };
         frameAssets.forEach((frame, idx) => {
           const frameId = `${layer.id}_frame_${idx}`;
           assets[frameId] = { filename: `${framePrefix}${idx}${frameExtension}`, dataURL: frame.dataURL };
         });
-        let nextLayers: AnyLayer[] = cur.layers;
         const selId = cur.selectedId || null;
-        if (!selId || selId === '__root__') nextLayers = [...cur.layers, layer];
-        else {
-          const target = findById(cur.layers, selId);
-          if (target && (target as any).type === 'group') nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-          else if (target) {
-            const wrapped = wrapAsGroup(cur.layers, selId);
-            const groupId = wrapped.newGroupId || selId;
-            nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-          } else nextLayers = [...cur.layers, layer];
-        }
+        const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
         const next = { ...cur, layers: nextLayers, selectedId: layer.id, assets };
         return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
       });
@@ -1251,18 +1169,9 @@ export function EditorProvider({
         const frameId = `${layer.id}_frame_${idx}`;
         assets[frameId] = { filename: `${framePrefix}${idx}${frameExtension}`, dataURL: frame.dataURL };
       });
-      let nextLayers: AnyLayer[] = cur.layers;
       const selId = cur.selectedId || null;
-      if (!selId || selId === '__root__') nextLayers = [...cur.layers, layer];
-      else {
-        const target = findById(cur.layers, selId);
-        if (target && (target as any).type === 'group') nextLayers = insertIntoGroupInTree(cur.layers, selId, layer).layers;
-        else if (target) {
-          const wrapped = wrapAsGroup(cur.layers, selId);
-          const groupId = wrapped.newGroupId || selId;
-          nextLayers = insertIntoGroupInTree(wrapped.layers, groupId, layer).layers;
-        } else nextLayers = [...cur.layers, layer];
-      }
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
       const next = { ...cur, layers: nextLayers, selectedId: layer.id, assets };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -1315,6 +1224,27 @@ export function EditorProvider({
       const nextLayers = [...cur.layers, layer];
       const nextCur = { ...cur, layers: nextLayers } as CADoc;
       return { ...prev, docs: { ...prev.docs, [key]: nextCur } } as ProjectDocument;
+    });
+  }, [addBase]);
+  
+  const addTransformLayer = useCallback(() => {
+    setDoc((prev) => {
+      if (!prev) return prev;
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const selId = cur.selectedId || null;
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
+      const layer: TransformLayer = {
+        ...addBase('Transform Layer'),
+        position: { x: canvasW / 2, y: canvasH / 2 },
+        size: { w: canvasW, h: canvasH },
+        type: 'transform',
+      };
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
+      const next = { ...cur, layers: nextLayers, selectedId: layer.id };
+      return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
   }, [addBase]);
   
@@ -1395,8 +1325,8 @@ export function EditorProvider({
       const cur = prev.docs[key];
       const collectIds = (node: AnyLayer, out: Set<string>) => {
         out.add(node.id);
-        if ((node as any).type === 'group' && Array.isArray((node as any).children)) {
-          for (const c of (node as GroupLayer).children) collectIds(c, out);
+        if (node.children?.length) {
+          for (const c of node.children) collectIds(c, out);
         }
       };
       const removedIds = new Set<string>();
@@ -1433,8 +1363,8 @@ export function EditorProvider({
         if (l.type === 'image') {
           const a = (cur.assets || {})[l.id];
           if (a) images[l.id] = { ...a };
-        } else if (l.type === 'group') {
-          (l as GroupLayer).children.forEach(walk);
+        } else if (l.children?.length) {
+          for (const c of l.children) walk(c);
         }
       };
       walk(sel);
@@ -1461,8 +1391,8 @@ export function EditorProvider({
           const c = copies[i];
           if (o && c) {
             idMap.set((o as any).id, (c as any).id);
-            if (o.type === 'group' && c.type === 'group') {
-              collectMap((o as GroupLayer).children, (c as GroupLayer).children);
+            if (o.children?.length && c.children?.length) {
+              collectMap(o.children, c.children);
             }
           }
         }
@@ -1494,8 +1424,8 @@ export function EditorProvider({
         if (l.type === 'image') {
           const a = (cur.assets || {})[l.id];
           if (a) images[l.id] = { ...a };
-        } else if (l.type === 'group') {
-          (l as GroupLayer).children.forEach(walk);
+        } else if (l.children?.length) {
+          for (const c of l.children) walk(c);
         }
       };
       walk(sel);
@@ -1504,10 +1434,8 @@ export function EditorProvider({
       const idMap = new Map<string, string>();
       const buildMap = (o: AnyLayer, c: AnyLayer) => {
         idMap.set((o as any).id, (c as any).id);
-        if (o.type === 'group' && c.type === 'group') {
-          const oc = (o as GroupLayer).children;
-          const cc = (c as GroupLayer).children;
-          for (let i = 0; i < oc.length; i++) buildMap(oc[i], cc[i]);
+        if (o.children?.length && c.children?.length) {
+          for (let i = 0; i < o.children.length; i++) buildMap(o.children[i], c.children[i]);
         }
       };
       buildMap(sel, cloned);
@@ -1618,6 +1546,7 @@ export function EditorProvider({
     addGradientLayer,
     addVideoLayerFromFile,
     addEmitterLayer,
+    addTransformLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,
@@ -1626,7 +1555,6 @@ export function EditorProvider({
     pasteFromClipboard,
     duplicateLayer,
     moveLayer,
-    moveLayerInto,
     persist,
     undo,
     redo,
@@ -1654,6 +1582,7 @@ export function EditorProvider({
     addGradientLayer,
     addVideoLayerFromFile,
     addEmitterLayer,
+    addTransformLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,

@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigg
 import { ArrowRight, Eye, Settings } from "lucide-react";
 import { useEditor } from "./editor-context";
 import { useState, useMemo } from "react";
+import { AnyLayer } from "@/lib/ca/types";
 
 export function StatesPanel() {
   const { doc, setDoc, setActiveState } = useEditor();
@@ -43,10 +44,10 @@ export function StatesPanel() {
   }, [stateOverrides]);
 
   const findLayerName = (layerId: string): string => {
-    const findInLayers = (layers: any[]): string | null => {
+    const findInLayers = (layers: AnyLayer[]): string | null => {
       for (const layer of layers) {
         if (layer.id === layerId) return layer.name || 'Unnamed Layer';
-        if (layer.type === 'group' && layer.children) {
+        if (layer.children?.length) {
           const found = findInLayers(layer.children);
           if (found) return found;
         }

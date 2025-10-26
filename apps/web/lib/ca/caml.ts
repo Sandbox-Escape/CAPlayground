@@ -1,5 +1,5 @@
-import { CAEmitterCell, CAEmitterLayer } from '@/components/editor/emitter/emitter';
-import { AnyLayer, CAProject, GroupLayer, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations, EmitterLayer } from './types';
+import { CAEmitterCell } from '@/components/editor/emitter/emitter';
+import { AnyLayer, CAProject, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations, EmitterLayer, LayerBase, TransformLayer } from './types';
 
 const CAML_NS = 'http://www.apple.com/CoreAnimation/1.0';
 
@@ -260,8 +260,8 @@ function parseLayerBase(el: Element): LayerBase {
     rotationX: radToDeg(rotationX || 0),
     rotationY: radToDeg(rotationY || 0),
     anchorPoint: (anchorPt.length === 2 && (anchorPt[0] !== 0.5 || anchorPt[1] !== 0.5)) 
-? { x: anchorPt[0], y: anchorPt[1] } 
-: undefined,
+      ? { x: anchorPt[0], y: anchorPt[1] } 
+      : undefined,
     geometryFlipped: parseBooleanAttr(el, 'geometryFlipped') || 0,
     masksToBounds: parseBooleanAttr(el, 'masksToBounds') || 0,
   };
@@ -395,6 +395,8 @@ function parseCAVideoLayer(el: Element): VideoLayer {
 
 function parseCATextLayer(el: Element): AnyLayer {
   const base = parseLayerBase(el);
+  const children = parseSublayers(el);
+
   const fontSizeAttr = attr(el, 'fontSize');
   const alignmentMode = attr(el, 'alignmentMode') as TextLayer['align'] | undefined;
   const wrappedAttr = attr(el, 'wrapped');
@@ -410,33 +412,6 @@ function parseCATextLayer(el: Element): AnyLayer {
   }
   const colorHex = floatsToHexColor(attr(el, 'foregroundColor'));
 
-  const sublayersEl = directChildByTagNS(el, 'sublayers');
-  if (sublayersEl) {
-    const sublayerNodes = (Array.from(sublayersEl.children) as Element[])
-      .filter((c) => ((c as any).namespaceURI === CAML_NS) && (c.localName === 'CALayer' || c.localName === 'CATextLayer' || c.localName === 'CAGradientLayer'));
-    if (sublayerNodes.length > 0) {
-      const children: AnyLayer[] = [];
-      for (const n of sublayerNodes) {
-        if (n.localName === 'CALayer') children.push(parseCALayer(n));
-        else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
-        else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
-      }
-      const group: GroupLayer = {
-        ...base,
-        type: 'group',
-        children,
-      } as any;
-      (group as any)._displayType = 'text';
-      (group as any).text = textValue || '';
-      (group as any).fontFamily = fontFamily;
-      (group as any).fontSize = fontSizeAttr ? Number(fontSizeAttr) : undefined;
-      (group as any).color = colorHex;
-      (group as any).align = alignmentMode;
-      (group as any).wrapped = typeof wrappedAttr !== 'undefined' ? ((wrappedAttr === '1' ? 1 : 0) as 0 | 1) : undefined;
-      return group;
-    }
-  }
-
   const parsedAnimations = parseCALayerAnimations(el);
 
   const layer: AnyLayer = {
@@ -448,6 +423,7 @@ function parseCATextLayer(el: Element): AnyLayer {
     color: colorHex,
     align: alignmentMode,
     wrapped: typeof wrappedAttr !== 'undefined' ? ((wrappedAttr === '1' ? 1 : 0) as 0 | 1) : undefined,
+    children,
     ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
   } as AnyLayer;
   return layer;
@@ -455,6 +431,7 @@ function parseCATextLayer(el: Element): AnyLayer {
 
 function parseCAGradientLayer(el: Element): AnyLayer {
   const base = parseLayerBase(el);
+  const children = parseSublayers(el);
   
   const startPointAttr = parseNumberList(attr(el, 'startPoint'));
   const endPointAttr = parseNumberList(attr(el, 'endPoint'));
@@ -488,31 +465,6 @@ function parseCAGradientLayer(el: Element): AnyLayer {
     }
   }
 
-  const sublayersEl = directChildByTagNS(el, 'sublayers');
-  if (sublayersEl) {
-    const sublayerNodes = (Array.from(sublayersEl.children) as Element[])
-      .filter((c) => ((c as any).namespaceURI === CAML_NS) && (c.localName === 'CALayer' || c.localName === 'CATextLayer' || c.localName === 'CAGradientLayer'));
-    if (sublayerNodes.length > 0) {
-      const children: AnyLayer[] = [];
-      for (const n of sublayerNodes) {
-        if (n.localName === 'CALayer') children.push(parseCALayer(n));
-        else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
-        else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
-      }
-      const group: GroupLayer = {
-        ...base,
-        type: 'group',
-        children,
-      } as any;
-      (group as any)._displayType = 'gradient';
-      (group as any).gradientType = gradientType;
-      (group as any).startPoint = startPoint;
-      (group as any).endPoint = endPoint;
-      (group as any).colors = colors;
-      return group;
-    }
-  }
-
   const parsedAnimations = parseCALayerAnimations(el);
 
   const layer: AnyLayer = {
@@ -522,6 +474,7 @@ function parseCAGradientLayer(el: Element): AnyLayer {
     startPoint,
     endPoint,
     colors,
+    children,
     ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
   } as AnyLayer;
   
@@ -582,6 +535,32 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
   } as AnyLayer;
 }
 
+function parseCATransformLayer(el: Element): AnyLayer {
+  const base = parseLayerBase(el);
+  const children = parseSublayers(el);
+  
+  return {
+    ...base,
+    type: 'transform',
+    children,
+  } as AnyLayer;
+}
+
+function parseSublayers(el: Element): AnyLayer[] {
+  const sublayersEl = directChildByTagNS(el, 'sublayers');
+  const children = [];
+  if (sublayersEl) {
+    for (const n of sublayersEl.children) {
+      if (n.localName === 'CALayer') children.push(parseCALayer(n));
+      else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
+      else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
+      else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
+      else if (n.localName === 'CATransformLayer') children.push(parseCATransformLayer(n));
+    }
+  }
+  return children;
+}
+
 function parseCALayer(el: Element): AnyLayer {
   const caplayKind = attr(el, 'caplayKind') || attr(el, 'caplay.kind');
   if (caplayKind === 'video') {
@@ -589,6 +568,7 @@ function parseCALayer(el: Element): AnyLayer {
   }
 
   const layerBase = parseLayerBase(el);
+  const children = parseSublayers(el);
   let backgroundColor: string | undefined = undefined;
   let backgroundOpacity: number | undefined = undefined;
   const bgAttr = attr(el, 'backgroundColor');
@@ -606,12 +586,6 @@ function parseCALayer(el: Element): AnyLayer {
   const borderColorRaw = attr(el, 'borderColor');
   const borderColor = floatsToHexColor(borderColorRaw) || borderColorRaw || undefined;
   const borderWidth = attr(el, 'borderWidth') ? Number(attr(el, 'borderWidth')) : undefined;
-  const textValue = attr(el, 'text');
-  const fontFamily = attr(el, 'fontFamily');
-  const fontSizeAttr = attr(el, 'fontSize');
-  const fontSize = fontSizeAttr ? Number(fontSizeAttr) : undefined;
-  const color = attr(el, 'color');
-  const align = attr(el, 'align') as TextLayer['align'] | undefined;
 
   let imageSrc: string | undefined;
   const contents = directChildByTagNS(el, 'contents');
@@ -625,7 +599,7 @@ function parseCALayer(el: Element): AnyLayer {
       if (t === 'cgimage' && s) imageSrc = s;
     }
   }
-
+  let type = imageSrc ? 'image' : attr(el, 'type') || 'shape';
   const base = {
     ...layerBase,
     backgroundColor,
@@ -633,165 +607,17 @@ function parseCALayer(el: Element): AnyLayer {
     cornerRadius,
     borderColor,
     borderWidth,
+    src: imageSrc,
   } as const;
 
   const parsedAnimations = parseCALayerAnimations(el);
 
-  const sublayersEl = directChildByTagNS(el, 'sublayers');
-  const sublayerNodes = sublayersEl
-    ? (Array.from(sublayersEl.children) as Element[])
-        .filter((c) => ((c as any).namespaceURI === CAML_NS) && (c.localName === 'CALayer' || c.localName === 'CATextLayer' || c.localName === 'CAGradientLayer' || c.localName === 'CAEmitterLayer'))
-    : [];
-  
-  if (caplayKind === 'image' || caplayKind === 'text' || caplayKind === 'gradient' || caplayKind === 'emitter') {
-    const children: AnyLayer[] = [];
-    if (sublayersEl) {
-      for (const n of sublayerNodes) {
-        if (n.localName === 'CALayer') children.push(parseCALayer(n));
-        else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
-        else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
-        else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
-      }
-    }
-    const group: GroupLayer = {
-      ...base,
-      type: 'group',
-      children,
-      ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
-    } as any;
-    (group as any)._displayType = caplayKind;
-    if (caplayKind === 'image') {
-      (group as any).src = imageSrc;
-    } else if (caplayKind === 'text') {
-      const colorHex = attr(el, 'color') || floatsToHexColor(attr(el, 'foregroundColor'));
-      (group as any).color = colorHex || undefined;
-      const fsAttr = attr(el, 'fontSize');
-      (group as any).fontSize = fsAttr ? Number(fsAttr) : undefined;
-      const wrappedAttr = attr(el, 'wrapped');
-      (group as any).wrapped = typeof wrappedAttr !== 'undefined' ? ((wrappedAttr === '1' ? 1 : 0) as 0 | 1) : undefined;
-      const alignAttr = attr(el, 'alignmentMode') || attr(el, 'align');
-      (group as any).align = (alignAttr as any) || undefined;
-      let ff = attr(el, 'fontFamily');
-      const fontEl = el.getElementsByTagNameNS(CAML_NS, 'font')[0] as Element | undefined;
-      if (!ff && fontEl) ff = fontEl.getAttribute('value') || undefined;
-      (group as any).fontFamily = ff;
-      let txt = attr(el, 'text') || '';
-      const strEl = el.getElementsByTagNameNS(CAML_NS, 'string')[0] as Element | undefined;
-      if ((!txt || !txt.trim()) && strEl) txt = strEl.getAttribute('value') || '';
-      (group as any).text = txt || '';
-    } else if (caplayKind === 'gradient') {
-      const startVals = parseNumberList(attr(el, 'startPoint'));
-      const endVals = parseNumberList(attr(el, 'endPoint'));
-      (group as any).startPoint = { x: startVals[0] ?? 0, y: startVals[1] ?? 0 };
-      (group as any).endPoint = { x: endVals[0] ?? 1, y: endVals[1] ?? 1 };
-      const colors: any[] = [];
-      const colorsEl = el.getElementsByTagNameNS(CAML_NS, 'colors')[0] as Element | undefined;
-      if (colorsEl) {
-        const cgColors = directChildrenByTagNS(colorsEl, 'CGColor');
-        for (const cgColor of cgColors) {
-          const value = cgColor.getAttribute('value');
-          const opacityVal = cgColor.getAttribute('opacity');
-          const colorHex2 = floatsToHexColor(value || '');
-          colors.push({ color: colorHex2 || '#000000', opacity: typeof opacityVal === 'string' ? Number(opacityVal) : 1 });
-        }
-      }
-      (group as any).colors = colors;
-      const typeEl = el.getElementsByTagNameNS(CAML_NS, 'type')[0] as Element | undefined;
-      let gType: any = 'axial';
-      if (typeEl) {
-        const v = typeEl.getAttribute('value');
-        if (v === 'radial' || v === 'conic' || v === 'axial') gType = v;
-      }
-      (group as any).gradientType = gType;
-    }
-    return group;
-  }
-
-  if (imageSrc && sublayerNodes.length === 0) {
-    return {
-      ...base,
-      type: 'image',
-      src: imageSrc,
-      ...(parsedAnimations ? { animations: parsedAnimations } : {}),
-    } as AnyLayer;
-  }
-
-  if (textValue !== undefined && sublayerNodes.length === 0) {
-    return {
-      ...base,
-      type: 'text',
-      text: textValue || '',
-      fontFamily: fontFamily || undefined,
-      fontSize,
-      color: color || undefined,
-      align: align || undefined,
-      ...(parsedAnimations ? { animations: parsedAnimations } : {}),
-    } as AnyLayer;
-  }
-
-  if (sublayersEl) {
-    const children: AnyLayer[] = [];
-    const kids = sublayerNodes;
-    for (const n of kids) {
-      if (n.localName === 'CALayer') children.push(parseCALayer(n));
-      else if (n.localName === 'CATextLayer') children.push(parseCATextLayer(n));
-      else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
-      else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
-    }
-    const normalize = (s: string) => {
-      try { s = decodeURIComponent(s); } catch {}
-      return (s || '').trim().toLowerCase();
-    };
-    const imageSrcNorm = imageSrc ? normalize(imageSrc) : '';
-    const imageFileNorm = imageSrc ? normalize((imageSrc.split('/').pop() || imageSrc)) : '';
-    const hasEquivalentChild = children.some((ch) => {
-      if ((ch as any).type !== 'image') return false;
-      const cs = (ch as any).src || '';
-      const csNorm = normalize(cs);
-      const cfNorm = normalize((cs.split('/').pop() || cs));
-      return !!imageSrc && (csNorm === imageSrcNorm || cfNorm === imageFileNorm);
-    });
-
-    if (imageSrc && !isTopLevelRoot(el) && !hasEquivalentChild) {
-      const imgChild: AnyLayer = {
-        ...base,
-        id: crypto.randomUUID(),
-        name: (base as any).name ? `${(base as any).name} (Contents)` : 'Contents Image',
-        type: 'image',
-        position: { x: (base as any).size.w / 2, y: (base as any).size.h / 2 },
-        size: { w: (base as any).size.w, h: (base as any).size.h },
-        src: imageSrc,
-        anchorPoint: { x: 0.5, y: 0.5 },
-      } as AnyLayer;
-      children.unshift(imgChild);
-    }
-    if (children.length > 0) {
-      const group: GroupLayer = {
-        ...base,
-        type: 'group',
-        children,
-        ...(parsedAnimations ? { animations: parsedAnimations } : {} as any),
-      };
-      return group;
-    }
-  }
-
-  if (sublayerNodes.length === 0) {
-    return {
-      ...base,
-      type: 'shape',
-      shape: 'rect',
-      fill: (base as any).backgroundColor,
-      radius: (base as any).cornerRadius,
-      borderColor: (base as any).borderColor,
-      borderWidth: (base as any).borderWidth,
-      ...(parsedAnimations ? { animations: parsedAnimations } : {}),
-    } as AnyLayer;
-  }
-  // Fallback
-  const children = sublayerNodes.map((n) => parseCALayer(n));
-  const group: GroupLayer = { ...base, type: 'group', children, ...(parsedAnimations ? { animations: parsedAnimations } : {} as any) };
-  return group;
+  return {
+    ...base,
+    type,
+    children,
+    ...(parsedAnimations ? { animations: parsedAnimations } : {}),
+  } as AnyLayer;
 }
 
 export function serializeCAML(
@@ -811,7 +637,7 @@ export function serializeCAML(
   const layerIndex: Record<string, AnyLayer> = {};
   const indexWalk = (l: AnyLayer) => {
     layerIndex[l.id] = l as AnyLayer;
-    if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
+    if (Array.isArray((l as any).children)) {
       ((l as any).children as AnyLayer[]).forEach(indexWalk);
     }
   };
@@ -993,17 +819,15 @@ function setAttr(el: Element, name: string, value: string | number | undefined) 
 }
 
 function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, wallpaperParallaxGroupsInput?: GyroParallaxDictionary[]): Element {
-  const isText = layer.type === 'text';
-  const isGradient = layer.type === 'gradient';
-  const isEmitter = layer.type === 'emitter';
-  const hasGradientProps = layer.type === 'group' && ((layer as any).gradientType || (layer as any)._displayType === 'gradient');
-  const elementType = isText
-    ? 'CATextLayer'
-    : (isGradient || hasGradientProps)
-      ? 'CAGradientLayer'
-      : isEmitter
-        ? 'CAEmitterLayer'
-        : 'CALayer';
+  const elementTypes: Record<string, string> = {
+    text: 'CATextLayer',
+    gradient: 'CAGradientLayer',
+    emitter: 'CAEmitterLayer',
+    transform: 'CATransformLayer',
+    default: 'CALayer',
+  }
+
+  const elementType = elementTypes[layer.type] || elementTypes[(layer as any)._displayType] || elementTypes.default;
   const el = doc.createElementNS(CAML_NS, elementType);
   setAttr(el, 'id', layer.id);
   setAttr(el, 'name', layer.name);
@@ -1062,70 +886,6 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
   setAttr(el, 'allowsGroupOpacity', '1');
   setAttr(el, 'contentsFormat', 'RGBA8');
   setAttr(el, 'cornerCurve', 'circular');
-
-  const displayType = (layer as any)._displayType as string | undefined;
-  const inferredType = !displayType && layer.type === 'group' ? (
-    ((layer as any).gradientType || (layer as any).colors) ? 'gradient' :
-    ((layer as any).text !== undefined) ? 'text' :
-    ((layer as any).src) ? 'image' : undefined
-  ) : undefined;
-  const effectiveDisplayType = displayType || inferredType;
-  if (layer.type === 'group' && effectiveDisplayType) {
-    setAttr(el, 'caplayKind', effectiveDisplayType);
-    if (effectiveDisplayType === 'image') {
-      const imgSrc = (layer as any).src || ((layer as any).children || []).find((c: any) => c?.type === 'image')?.src;
-      if (imgSrc) {
-        const contents = doc.createElementNS(CAML_NS, 'contents');
-        contents.setAttribute('type', 'CGImage');
-        contents.setAttribute('src', imgSrc);
-        el.appendChild(contents);
-      }
-    } else if (effectiveDisplayType === 'text') {
-      const colorHex = (layer as any).color as string | undefined;
-      const fg = hexToForegroundColor(colorHex || '#000000');
-      if (fg) setAttr(el, 'foregroundColor', fg);
-      setAttr(el, 'color', colorHex);
-      setAttr(el, 'fontSize', (layer as any).fontSize ?? undefined);
-      const align = (layer as any).align || 'left';
-      const alignmentMode = align === 'justified' ? 'justified' : align;
-      setAttr(el, 'alignmentMode', alignmentMode);
-      setAttr(el, 'wrapped', (layer as any).wrapped ?? 1);
-      setAttr(el, 'fontFamily', (layer as any).fontFamily || 'SFProText-Regular');
-      const font = doc.createElementNS(CAML_NS, 'font');
-      font.setAttribute('type', 'string');
-      font.setAttribute('value', (layer as any).fontFamily || 'SFProText-Regular');
-      el.appendChild(font);
-      const str = doc.createElementNS(CAML_NS, 'string');
-      str.setAttribute('type', 'string');
-      str.setAttribute('value', (layer as any).text || '');
-      el.appendChild(str);
-    } else if (effectiveDisplayType === 'gradient') {
-      const gradLayer: any = layer;
-      const startX = gradLayer.startPoint?.x ?? 0;
-      const startY = gradLayer.startPoint?.y ?? 0;
-      const endX = gradLayer.endPoint?.x ?? 1;
-      const endY = gradLayer.endPoint?.y ?? 1;
-      setAttr(el, 'startPoint', `${startX} ${startY}`);
-      setAttr(el, 'endPoint', `${endX} ${endY}`);
-      if (Array.isArray(gradLayer.colors) && gradLayer.colors.length > 0) {
-        const colorsEl = doc.createElementNS(CAML_NS, 'colors');
-        for (const gradColor of gradLayer.colors) {
-          const cgColor = doc.createElementNS(CAML_NS, 'CGColor');
-          const colorValue = hexToForegroundColor(gradColor.color);
-          if (colorValue) cgColor.setAttribute('value', colorValue);
-          if (typeof gradColor.opacity === 'number' && gradColor.opacity < 1) {
-            const op = Math.round(Math.max(0, Math.min(1, gradColor.opacity)) * 100) / 100;
-            cgColor.setAttribute('opacity', String(op));
-          }
-          colorsEl.appendChild(cgColor);
-        }
-        el.appendChild(colorsEl);
-      }
-      const typeEl = doc.createElementNS(CAML_NS, 'type');
-      typeEl.setAttribute('value', (gradLayer.gradientType || 'axial'));
-      el.appendChild(typeEl);
-    }
-  }
 
   if (layer.type === 'image') {
     const contents = doc.createElementNS(CAML_NS, 'contents');
@@ -1355,15 +1115,15 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     el.appendChild(style);
   }
 
-  if (layer.type === 'group') {
-    const sublayers = doc.createElementNS(CAML_NS, 'sublayers');
-    const children = (layer as GroupLayer).children || [];
-    for (const child of children) {
-      sublayers.appendChild(serializeLayer(doc, child, project));
-    }
-    if (children.length) el.appendChild(sublayers);
+  if (layer.children && layer.children.length > 0) {
+    const sublayersEl = doc.createElementNS(CAML_NS, 'sublayers');
+    layer.children.forEach((child) => {
+      const childEl = serializeLayer(doc, child, project);
+      sublayersEl.appendChild(childEl);
+    });
+    el.appendChild(sublayersEl);
   }
-
+  
   const anim = (layer as any).animations as
     | Animations
     | undefined;

@@ -449,7 +449,7 @@ function ProjectsContent() {
               const root = {
                 id: meta.id,
                 name: meta.name,
-                type: 'group',
+                type: 'basic',
                 position: { x: Math.round((meta.width || 0)/2), y: Math.round((meta.height || 0)/2) },
                 size: { w: meta.width || 0, h: meta.height || 0 },
                 backgroundColor: '#e5e7eb',
@@ -652,7 +652,7 @@ function ProjectsContent() {
                 width = Math.round(root.size?.w || width || 390);
                 height = Math.round(root.size?.h || height || 844);
                 if (typeof root.backgroundColor === 'string') bg = root.backgroundColor;
-                layers = root?.type === 'group' ? (root.children || []) : [root];
+                layers = root?.type === 'basic' ? (root.children || []) : [root];
               }
             } catch {}
           }
@@ -673,9 +673,8 @@ function ProjectsContent() {
             } catch {}
           }
           const applyAssetSrc = (arr: AnyLayer[]): AnyLayer[] => arr.map((l) => {
-            if ((l as any).type === 'group') {
-              const g = l as any;
-              return { ...g, children: applyAssetSrc(g.children || []) } as AnyLayer;
+            if (l.children?.length) {
+              return { ...l, children: applyAssetSrc(l.children || []) } as AnyLayer;
             }
             if (l.type === 'image') {
               const name = (l.src || '').split('/').pop() || '';
@@ -1163,8 +1162,8 @@ function ProjectsContent() {
         const { serializeCAML } = await import('@/lib/ca/caml');
         const group = {
           id,
-          name,
-          type: 'group',
+          name: 'Root Layer',
+          type: 'basic',
           position: { x: Math.round((width||0)/2), y: Math.round((height||0)/2) },
           size: { w: width||0, h: height||0 },
           backgroundColor: root?.backgroundColor ?? '#e5e7eb',
@@ -1179,19 +1178,19 @@ function ProjectsContent() {
       if (dual) {
         // Floating from dual
         const flRoot = dual.floating.root as any;
-        const flLayers = flRoot?.type === 'group' && Array.isArray(flRoot.children) ? flRoot.children : (flRoot ? [flRoot] : []);
+        const flLayers = Array.isArray(flRoot.children) ? flRoot.children : (flRoot ? [flRoot] : []);
         const camlFloating = await mkCaml(flLayers);
         await putTextFile(id, `${folder}/Floating.ca/main.caml`, camlFloating);
         await putTextFile(id, `${folder}/Floating.ca/index.xml`, indexXml);
         await putTextFile(id, `${folder}/Floating.ca/assetManifest.caml`, assetManifest);
         // Background from dual
         const bgRoot = dual.background.root as any;
-        const bgLayers = bgRoot?.type === 'group' && Array.isArray(bgRoot.children) ? bgRoot.children : (bgRoot ? [bgRoot] : []);
+        const bgLayers = Array.isArray(bgRoot.children) ? bgRoot.children : (bgRoot ? [bgRoot] : []);
         const { serializeCAML } = await import('@/lib/ca/caml');
         const bgGroup = {
           id: `${id}-bg`,
-          name: `${name} Background`,
-          type: 'group',
+          name: 'Root Layer',
+          type: 'basic',
           position: { x: Math.round((width||0)/2), y: Math.round((height||0)/2) },
           size: { w: width||0, h: height||0 },
           backgroundColor: (bgRoot?.backgroundColor ?? '#e5e7eb'),
@@ -1203,7 +1202,7 @@ function ProjectsContent() {
         await putTextFile(id, `${folder}/Background.ca/index.xml`, indexXml);
         await putTextFile(id, `${folder}/Background.ca/assetManifest.caml`, assetManifest);
       } else {
-        const layers = root?.type === 'group' && Array.isArray(root.children) ? root.children : (root ? [root] : []);
+        const layers = Array.isArray(root.children) ? root.children : (root ? [root] : []);
         const camlFloating = await mkCaml(layers);
         const emptyBackgroundCaml = `<?xml version="1.0" encoding="UTF-8"?><caml xmlns="http://www.apple.com/CoreAnimation/1.0"/>`;
         await putTextFile(id, `${folder}/Floating.ca/main.caml`, camlFloating);
@@ -1271,11 +1270,11 @@ function ProjectsContent() {
       
       const mkCaml = async (doc: { root: AnyLayer; assets?: Record<string, CAAsset>; states?: string[]; stateOverrides?: any; stateTransitions?: any }, docName: string) => {
         const root = doc.root as any;
-        const layers = root?.type === 'group' && Array.isArray(root.children) ? root.children : (root ? [root] : []);
+        const layers = Array.isArray(root.children) ? root.children : (root ? [root] : []);
         const group = {
           id: `${id}-${docName}`,
-          name: `${name} ${docName}`,
-          type: 'group',
+          name: `Root Layer`,
+          type: 'basic',
           position: { x: Math.round(width/2), y: Math.round(height/2) },
           size: { w: width, h: height },
           backgroundColor: root?.backgroundColor ?? '#e5e7eb',
@@ -1662,8 +1661,7 @@ function ProjectsContent() {
                 </Label>
               </div>
               
-              {/* TODO: enable when gyro feature is ready */}
-              {/* <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="gyro-enabled" 
                   checked={gyroEnabled} 
@@ -1672,7 +1670,7 @@ function ProjectsContent() {
                 <Label htmlFor="gyro-enabled" className="text-sm font-medium cursor-pointer">
                   Enable Gyro (Parallax Effect)
                 </Label>
-              </div> */}
+              </div>
               
               {useDeviceSelector ? (
                 <div className="space-y-2">

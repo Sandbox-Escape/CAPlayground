@@ -1,18 +1,19 @@
 "use client";
 
 import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Minus, Plus, Crosshair, Square, Crop, Clock } from "lucide-react";
+import { Minus, Plus, Crosshair, Square, Crop, Clock, Rotate3D } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import type { ReactNode, MouseEvent as ReactMouseEvent } from "react";
 import { useEditor } from "./editor-context";
 import { LayerContextMenu } from "./layer-context-menu";
-import type { AnyLayer, EmitterLayer, GroupLayer, ShapeLayer } from "@/lib/ca/types";
+import type { AnyLayer, EmitterLayer, ShapeLayer, TransformLayer } from "@/lib/ca/types";
 import { EmitterCanvas } from "./emitter/EmitterCanvas";
+import GyroControls from "./gyro/GyroControls";
 
 export function CanvasPreview() {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -38,6 +39,9 @@ export function CanvasPreview() {
   const [userScale, setUserScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [useGyroControls, setUseGyroControls] = useState(false);
+  const [gyroY, setGyroY] = useState(0);
+  const [gyroX, setGyroX] = useState(0);
   const [snapState, setSnapState] = useState<{ x: number | null; y: number | null }>({ x: null, y: null });
   const [SNAP_THRESHOLD] = useLocalStorage<number>("caplay_settings_snap_threshold", 12);
   const [snapEdgesEnabled] = useLocalStorage<boolean>("caplay_settings_snap_edges", true);
@@ -95,20 +99,6 @@ export function CanvasPreview() {
       } catch { return 'image.png'; }
     };
 
-  const findSiblingsOf = (layers: AnyLayer[], id: string): { siblings: AnyLayer[]; index: number } | null => {
-    const walk = (arr: AnyLayer[]): { siblings: AnyLayer[]; index: number } | null => {
-      const idx = arr.findIndex((l) => l.id === id);
-      if (idx >= 0) return { siblings: arr, index: idx };
-      for (const l of arr) {
-        if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
-          const res = walk((l as any).children as AnyLayer[]);
-          if (res) return res;
-        }
-      }
-      return null;
-    };
-    return walk(layers);
-  };
     const fetchToBlob = async (url: string): Promise<{ blob: Blob; filename?: string } | null> => {
       try {
         const res = await fetch(url, { mode: 'cors' });
@@ -340,15 +330,15 @@ export function CanvasPreview() {
     const cloneTree = (arr: AnyLayer[]): AnyLayer[] => arr.map((l) => {
       const copy = JSON.parse(JSON.stringify(l)) as AnyLayer;
       map[copy.id] = copy;
-      if ((copy as any).type === 'group' && Array.isArray((copy as any).children)) {
-        (copy as any).children = cloneTree((copy as any).children);
+      if (copy.children?.length) {
+        copy.children = cloneTree(copy.children);
       }
       return copy;
     });
     const rootCopy = cloneTree(layers);
     let list = overrides[state] || [];
     if ((!list || list.length === 0) && /\s(Light|Dark)$/.test(String(state))) {
-      const base = String(state).replace(/\s(Light|Dark)$/,'');
+      const base = String(state).replace(/\s(Light|Dark)$/, '');
       list = overrides[base] || [];
     }
     for (const o of list) {
@@ -421,8 +411,8 @@ export function CanvasPreview() {
     const map: Record<string, AnyLayer> = {};
     const walk = (l: AnyLayer) => {
       map[l.id] = l;
-      if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
-        (l as any).children.forEach(walk);
+      if (l.children?.length) {
+        l.children.forEach(walk);
       }
     };
     arr.forEach(walk);
@@ -479,21 +469,21 @@ export function CanvasPreview() {
       const fps = video.fps || 30;
       const duration = video.duration || (frameCount / fps);
       const autoReverses = video.autoReverses || false;
-      
+
       if (frameCount <= 1) return;
-      
+
       let localT = t % duration;
       if (autoReverses) {
         const cycle = duration * 2;
         const m = t % cycle;
         localT = m <= duration ? m : (cycle - m);
       }
-      
+
       const frameIndex = Math.floor(localT * fps) % frameCount;
       video.currentFrameIndex = frameIndex;
       return;
     }
-    
+
     const anim: any = (l as any).animations;
     if (!anim || !anim.enabled) return;
     const keyPath = (anim.keyPath || 'position') as 'position' | 'position.x' | 'position.y';
@@ -505,17 +495,17 @@ export function CanvasPreview() {
     const baseDuration = (Number.isFinite(providedDur) && providedDur > 0)
       ? providedDur
       : Math.max(1, intervals);
-    
+
     const speed = Number(anim.speed ?? 1);
     const effectiveSpeed = Number.isFinite(speed) && speed > 0 ? speed : 1;
-    
+
     const autorev = Number(anim.autoreverses ?? 0) === 1;
     const infinite = Number(anim.infinite ?? 1) === 1;
     const providedRepeat = Number(anim.repeatDurationSeconds);
     const repeatDuration = Number.isFinite(providedRepeat) && providedRepeat > 0
       ? providedRepeat
       : baseDuration;
-    
+
     const speedAdjustedT = t * effectiveSpeed;
     let localT = infinite ? speedAdjustedT : Math.min(speedAdjustedT, repeatDuration * effectiveSpeed);
     if (autorev) {
@@ -581,8 +571,8 @@ export function CanvasPreview() {
     const walk = (arr: AnyLayer[]) => {
       for (const l of arr) {
         evalLayerAnimation(l, timeSec);
-        if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
-          walk((l as any).children as AnyLayer[]);
+        if (l.children?.length) {
+          walk(l.children);
         }
       }
     };
@@ -596,10 +586,10 @@ export function CanvasPreview() {
       for (const l of arr) {
         const anim: any = (l as any).animations;
         if (anim && anim.enabled) return true;
-        if ((l as any).type === 'video') return true;
-        if ((l as any).type === 'emitter') return true;
-        if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
-          if (check((l as any).children as AnyLayer[])) return true;
+        if (l.type === 'video') return true;
+        if (l.type === 'emitter') return true;
+        if (l.children?.length) {
+          if (check(l.children)) return true;
         }
       }
       return false;
@@ -628,7 +618,7 @@ export function CanvasPreview() {
     const ovs = current?.stateOverrides || {};
     const pickList = (st?: string): Array<{ targetId: string; keyPath: string; value: any }> => {
       if (!st) return [];
-      const base = /\s(Light|Dark)$/.test(String(st)) ? String(st).replace(/\s(Light|Dark)$/,'') : String(st);
+      const base = /\s(Light|Dark)$/.test(String(st)) ? String(st).replace(/\s(Light|Dark)$/, '') : String(st);
       const direct = ovs[st] || [];
       if (direct && direct.length) return direct as any;
       return (ovs[base] || []) as any;
@@ -636,7 +626,7 @@ export function CanvasPreview() {
     const toList = pickList(nextState);
     const fromList = pickList(prevState);
     const keys = [
-      'position.x','position.y','bounds.size.width','bounds.size.height','transform.rotation.z','transform.rotation.x','transform.rotation.y','opacity','cornerRadius'
+      'position.x', 'position.y', 'bounds.size.width', 'bounds.size.height', 'transform.rotation.z', 'transform.rotation.x', 'transform.rotation.y', 'opacity', 'cornerRadius'
     ];
     const byKey = (arr: any[]) => {
       const m = new Map<string, Map<string, number>>();
@@ -805,8 +795,8 @@ export function CanvasPreview() {
       for (const n of arr) {
         stack.push(n);
         if (n.id === id) return [...stack];
-        if ((n as any).type === 'group' && Array.isArray((n as any).children)) {
-          const p = dfs((n as GroupLayer).children);
+        if (n.children?.length) {
+          const p = dfs(n.children);
           if (p) return p;
         }
         stack.pop();
@@ -823,10 +813,9 @@ export function CanvasPreview() {
     if (!path || path.length === 0) return { containerH, useYUp };
     for (let i = 0; i < path.length - 1; i++) {
       const node = path[i];
-      if ((node as any).type === 'group') {
-        const g = node as GroupLayer;
-        useYUp = (typeof (g as any).geometryFlipped === 'number') ? (((g as any).geometryFlipped as 0 | 1) === 0) : useYUp;
-        containerH = g.size.h;
+      if (node.children?.length) {
+        useYUp = (typeof node.geometryFlipped === 'number') ? (node.geometryFlipped === 0) : useYUp;
+        containerH = node.size.h;
       }
     }
     return { containerH, useYUp };
@@ -844,10 +833,9 @@ export function CanvasPreview() {
       const lt = computeCssLT(node, containerH, useYUp);
       left += lt.left;
       top += lt.top;
-      if (i < path.length - 1 && (node as any).type === 'group') {
-        const g = node as GroupLayer;
-        useYUp = (typeof (g as any).geometryFlipped === 'number') ? (((g as any).geometryFlipped as 0 | 1) === 0) : useYUp;
-        containerH = g.size.h;
+      if (i < path.length - 1 && node.children?.length) {
+        useYUp = (typeof node.geometryFlipped === 'number') ? (node.geometryFlipped === 0) : useYUp;
+        containerH = node.size.h;
       }
     }
     return { left, top, useYUp, containerH };
@@ -865,10 +853,9 @@ export function CanvasPreview() {
       const lt = computeCssLT(node, containerH, useYUp);
       left += lt.left;
       top += lt.top;
-      if ((node as any).type === 'group') {
-        const g = node as GroupLayer;
-        useYUp = (typeof (g as any).geometryFlipped === 'number') ? (((g as any).geometryFlipped as 0 | 1) === 0) : useYUp;
-        containerH = g.size.h;
+      if (node.children?.length) {
+        useYUp = (typeof node.geometryFlipped === 'number') ? (node.geometryFlipped === 0) : useYUp;
+        containerH = node.size.h;
       }
     }
     return { left, top, useYUp, containerH };
@@ -879,8 +866,8 @@ export function CanvasPreview() {
       const idx = arr.findIndex((l) => l.id === id);
       if (idx >= 0) return { siblings: arr, index: idx };
       for (const l of arr) {
-        if ((l as any).type === 'group' && Array.isArray((l as any).children)) {
-          const res = walk((l as any).children as AnyLayer[]);
+        if (l.children?.length) {
+          const res = walk(l.children);
           if (res) return res;
         }
       }
@@ -926,11 +913,11 @@ export function CanvasPreview() {
         const th = SNAP_THRESHOLD;
         const xPairs: Array<[number, number]> = [];
         const yPairs: Array<[number, number]> = [];
-        
+
         const parentAbs = getParentAbsContextFor(d.id);
         const absLeft = parentAbs.left + cssLeft;
         const absTop = parentAbs.top + cssTop;
-        
+
         if (snapEdgesEnabled) {
           xPairs.push([0 - parentAbs.left, 0], [(canvasW - d.w) / 2 - parentAbs.left, canvasW / 2], [canvasW - d.w - parentAbs.left, canvasW]);
           yPairs.push([0 - parentAbs.top, 0], [(canvasH - d.h) / 2 - parentAbs.top, canvasH / 2], [canvasH - d.h - parentAbs.top, canvasH]);
@@ -985,7 +972,7 @@ export function CanvasPreview() {
       } else {
         setSnapState({ x: null, y: null });
       }
-      const pos = cssToPosition(cssLeft, cssTop, (renderedLayers.find(r=>r.id===d.id) as AnyLayer) || (l as AnyLayer), h, d.yUp as boolean);
+      const pos = cssToPosition(cssLeft, cssTop, (renderedLayers.find(r => r.id === d.id) as AnyLayer) || (l as AnyLayer), h, d.yUp as boolean);
       updateLayerTransient(d.id, { position: { x: pos.x, y: pos.y } as any });
       d.lastX = pos.x;
       d.lastY = pos.y;
@@ -1069,7 +1056,9 @@ export function CanvasPreview() {
       ...(borderStyle || {}),
       ...(typeof (l as any).cornerRadius === 'number' ? { borderRadius: (l as any).cornerRadius } : {}),
     };
-
+    const nextUseYUp = (typeof (l as any).geometryFlipped === 'number')
+      ? (((l as any).geometryFlipped as 0 | 1) === 0)
+      : useYUp;
     if (l.type === "text") {
       const t = l as any;
       const cssAlign = (t.align === 'justified') ? 'justify' : (t.align || 'left');
@@ -1087,6 +1076,9 @@ export function CanvasPreview() {
             })}
           >
             {l.text}
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
+            })}
           </div>
         </LayerContextMenu>
       );
@@ -1097,25 +1089,35 @@ export function CanvasPreview() {
       const previewSrc = imgAsset?.dataURL || l.src;
       return (
         <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
-          <img
-            src={previewSrc}
-            alt={l.name}
-            style={{
-              ...common,
-              ...bgStyleFor(l),
-              objectFit: "fill" as React.CSSProperties["objectFit"],
-              maxWidth: "none",
-              maxHeight: "none",
-            }}
-            draggable={false}
-            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
-            onTouchStart={isWrappedContent ? undefined : ((e) => {
-              if (e.touches.length === 1) {
-                e.preventDefault();
-                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
-              }
+          <div style={{
+            ...common,
+            ...bgStyleFor(l),
+          }}>
+            <img
+              src={previewSrc}
+              alt={l.name}
+              style={{
+                ...common,
+                left: 0,
+                top: 0,
+                transform: 'none',
+                objectFit: "fill" as React.CSSProperties["objectFit"],
+                maxWidth: "none",
+                maxHeight: "none",
+              }}
+              draggable={false}
+              onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+              onTouchStart={isWrappedContent ? undefined : ((e) => {
+                if (e.touches.length === 1) {
+                  e.preventDefault();
+                  startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
+                }
+              })}
+            />
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
             })}
-          />
+          </div>
         </LayerContextMenu>
       );
     }
@@ -1157,7 +1159,7 @@ export function CanvasPreview() {
       const startY = (grad.startPoint?.y ?? 0) * 100;
       const endX = (grad.endPoint?.x ?? 1) * 100;
       const endY = (grad.endPoint?.y ?? 1) * 100;
-      
+
       const colors = (grad.colors || []).map((c: any) => {
         const opacity = c.opacity ?? 1;
         const hex = c.color || '#000000';
@@ -1166,11 +1168,11 @@ export function CanvasPreview() {
         const b = parseInt(hex.slice(5, 7), 16);
         return `rgba(${r}, ${g}, ${b}, ${opacity})`;
       }).join(', ');
-      
+
       let background = '';
-      
+
       const isSamePoint = Math.abs(startX - endX) < 0.01 && Math.abs(startY - endY) < 0.01;
-      
+
       if (isSamePoint) {
         const firstColor = (grad.colors || [])[0];
         if (firstColor) {
@@ -1194,7 +1196,7 @@ export function CanvasPreview() {
         const angle = Math.atan2(dy, dx) + Math.PI / 2;
         background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
       }
-      
+
       return (
         <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
           <div
@@ -1206,7 +1208,11 @@ export function CanvasPreview() {
                 startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
               }
             })}
-          />
+          >
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
+            })}
+          </div>
         </LayerContextMenu>
       );
     }
@@ -1215,7 +1221,7 @@ export function CanvasPreview() {
       const corner = (l as any).cornerRadius as number | undefined;
       const legacy = s.radius;
       const borderRadius = s.shape === "circle" ? 9999 : ((corner ?? legacy ?? 0));
-      const style: React.CSSProperties = (l as any).backgroundColor
+      let style: React.CSSProperties = (l as any).backgroundColor
         ? { ...common, ...bgStyleFor(l), borderRadius }
         : { ...common, background: s.fill, borderRadius };
       return (
@@ -1229,7 +1235,11 @@ export function CanvasPreview() {
                 startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
               }
             })}
-          />
+          >
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
+            })}
+          </div>
         </LayerContextMenu>
       );
     }
@@ -1265,123 +1275,121 @@ export function CanvasPreview() {
         </LayerContextMenu>
       );
     }
-    // group
-    const g = l as GroupLayer;
-    const nextUseYUp = (typeof (g as any).geometryFlipped === 'number')
-      ? (((g as any).geometryFlipped as 0 | 1) === 0)
-      : useYUp;
-    const parentDisplay = (g as any)._displayType as string | undefined;
-    return (
-      <LayerContextMenu key={g.id} layer={g} siblings={siblings}>
-        <div style={{ ...common, ...bgStyleFor(g), ...((((g as any).masksToBounds ?? 0) === 1) ? { overflow: 'hidden' as const } : {}) }}
-             onMouseDown={(e) => startDrag(g, e, containerH, useYUp)}
-             onTouchStart={(e) => {
-               if (e.touches.length === 1) {
-                 e.preventDefault();
-                 startDrag(g, touchToMouseLike(e.touches[0]), containerH, useYUp);
-               }
-             }}
-        >
-          {parentDisplay === 'text' && (
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                color: (g as any).color,
-                fontSize: (g as any).fontSize,
-                textAlign: (((g as any).align === 'justified') ? 'justify' : ((g as any).align || 'left')) as any,
-                whiteSpace: (((g as any).wrapped ?? 1) === 1 ? 'normal' : 'nowrap') as any,
-                pointerEvents: 'none',
-              }}
-            >
-              {(g as any).text}
-            </div>
-          )}
-          {parentDisplay === 'image' && (() => {
-            const assetsMap = assets || (current?.assets || {});
-            const imgAsset = assetsMap[g.id];
-            const previewSrc = imgAsset?.dataURL || (g as any).src || '';
-            return (
-              <img
-                src={previewSrc}
-                alt={(g as any).name}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: 0,
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'fill',
-                  maxWidth: 'none',
-                  maxHeight: 'none',
-                  pointerEvents: 'none',
-                }}
-                draggable={false}
-              />
-            );
-          })()}
-          {parentDisplay === 'gradient' && (() => {
-            const grad: any = g;
-            const gradType = grad.gradientType || 'axial';
-            const startX = (grad.startPoint?.x ?? 0) * 100;
-            const startY = (grad.startPoint?.y ?? 0) * 100;
-            const endX = (grad.endPoint?.x ?? 1) * 100;
-            const endY = (grad.endPoint?.y ?? 1) * 100;
-            const colors = (grad.colors || []).map((c: any) => {
-              const opacity = c.opacity ?? 1;
-              const hex = c.color || '#000000';
-              const r = parseInt(hex.slice(1, 3), 16);
-              const gC = parseInt(hex.slice(3, 5), 16);
-              const b = parseInt(hex.slice(5, 7), 16);
-              return `rgba(${r}, ${gC}, ${b}, ${opacity})`;
-            }).join(', ');
-            let background = '';
-            const isSamePoint = Math.abs(startX - endX) < 0.01 && Math.abs(startY - endY) < 0.01;
-            if (isSamePoint) {
-              const firstColor = (grad.colors || [])[0];
-              if (firstColor) {
-                const opacity = firstColor.opacity ?? 1;
-                const hex = firstColor.color || '#000000';
-                const r = parseInt(hex.slice(1, 3), 16);
-                const gC = parseInt(hex.slice(3, 5), 16);
-                const b = parseInt(hex.slice(5, 7), 16);
-                background = `rgba(${r}, ${gC}, ${b}, ${opacity})`;
+    if (l.type === "transform") {
+      function mapRange(value: number, b1: number, b2: number) {
+        const a1 = -1;
+        const a2 = 1;
+        return b1 + ((value - a1) * (b2 - b1)) / (a2 - a1);
+      }
+      const parallaxTransform = current?.wallpaperParallaxGroups?.filter(g => g.layerName === l.name)
+      const radToDeg = (rad: number) => rad * (180 / Math.PI);
+      const transformRotationX = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.x')[0]
+      const transformRotationY = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.y')[0]
+      const transformPositionX = parallaxTransform?.filter(g => g.keyPath === 'position.x')[0]
+      const transformPositionY = parallaxTransform?.filter(g => g.keyPath === 'position.y')[0]
+
+      // Calculate rotation and position values based on gyro input and configured min/max values
+      // gyroY (up/down tilt) typically controls rotateX (tilt forward/backward)
+      // gyroX (left/right tilt) typically controls rotateY (turn left/right)
+
+      let rotationXDelta = 0;
+      let rotationYDelta = 0;
+      let positionXDelta = null;
+      let positionYDelta = null;
+
+      if (transformRotationX) {
+        // Determine which gyro axis controls this rotation
+        let gyroValue = transformRotationX.axis === 'x' ? gyroX : gyroY;
+        gyroValue = -gyroValue;
+        // if (transformRotationX.mapMinTo > transformRotationX.mapMaxTo) {
+        //   gyroValue = -gyroValue;
+        // }
+        const targetValue = mapRange(gyroValue, transformRotationX.mapMinTo, transformRotationX.mapMaxTo)
+        rotationXDelta = radToDeg(targetValue);
+      }
+
+      if (transformRotationY) {
+        // Determine which gyro axis controls this rotation
+        let gyroValue = transformRotationY.axis === 'x' ? gyroX : gyroY;
+        gyroValue = -gyroValue;
+        // Use mapMinTo for negative gyro values, mapMaxTo for positive
+        const targetValue = mapRange(gyroValue, transformRotationY.mapMinTo, transformRotationY.mapMaxTo)
+        rotationYDelta = radToDeg(targetValue);
+      }
+
+      if (transformPositionX) {
+        // Determine which gyro axis controls this position
+        let gyroValue = transformPositionX.axis === 'x' ? gyroX : gyroY;
+        if (transformPositionX.mapMinTo > transformPositionX.mapMaxTo) {
+          gyroValue = -gyroValue;
+        }
+        // Use mapMinTo for negative gyro values, mapMaxTo for positive
+        const targetValue = mapRange(gyroValue, transformPositionX.mapMinTo, transformPositionX.mapMaxTo)
+        positionXDelta = targetValue;
+      }
+
+      if (transformPositionY) {
+        // Determine which gyro axis controls this position
+        const gyroValue = transformPositionY.axis === 'x' ? gyroX : gyroY;
+        // Use mapMinTo for negative gyro values, mapMaxTo for positive
+        const targetValue = mapRange(gyroValue, transformPositionY.mapMinTo, transformPositionY.mapMaxTo)
+        positionYDelta = targetValue;
+      }
+      let transformString = '';
+      const e = {
+        ...l,
+        position: {
+          ...l.position,
+        }
+      } as TransformLayer;
+      if (useGyroControls) {
+        if (positionXDelta !== null) {
+          e.position.x = positionXDelta;
+        }
+        if (positionYDelta !== null) {
+          e.position.y = positionYDelta;
+        }
+        transformString = `rotate3d(0, 1, 0, ${(e.rotationY ?? 0) + rotationYDelta}deg) rotateX(${(e.rotationX ?? 0) + rotationXDelta}deg)`;
+      }
+      const { left, top } = computeCssLT(e, containerH, useYUp);
+
+      const style: React.CSSProperties = {
+        ...common,
+        ...bgStyleFor(e),
+        ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
+        transform: transformString,
+        transformStyle: 'preserve-3d',
+        left,
+        top,
+      };
+
+      return (
+        <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
+          <div
+            style={style}
+            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+            onTouchStart={isWrappedContent ? undefined : ((e) => {
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
               }
-            } else if (gradType === 'axial') {
-              const dx = endX - startX;
-              const dy = -(endY - startY);
-              const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
-              background = `linear-gradient(${angle}deg, ${colors})`;
-            } else if (gradType === 'radial') {
-              background = `radial-gradient(circle at ${startX}% ${100 - startY}%, ${colors})`;
-            } else if (gradType === 'conic') {
-              const dx = endX - startX;
-              const dy = -(endY - startY);
-              const angle = Math.atan2(dy, dx) + Math.PI / 2;
-              background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
-            }
-            return (
-              <div
-                style={{ position: 'absolute', inset: 0, background, pointerEvents: 'none' }}
-              />
-            );
-          })()}
-          {g.children.map((c) => {
-            const childType = (c as any).type as string | undefined;
-            const disable = !!parentDisplay && !!childType && parentDisplay === childType;
-            return renderLayer(c, g.size.h, nextUseYUp, g.children, assets, disable);
-          })}
-        </div>
-      </LayerContextMenu>
-    );
+            })}
+          >
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
+            })}
+          </div>
+        </LayerContextMenu>
+      );
+    }
   };
 
   const findById = (layers: AnyLayer[], id: string | null | undefined): AnyLayer | undefined => {
     if (!id) return undefined;
     for (const l of layers) {
       if (l.id === id) return l;
-      if (l.type === "group") {
-        const found = findById((l as GroupLayer).children, id);
+      if (l.children?.length) {
+        const found = findById(l.children, id);
         if (found) return found;
       }
     }
@@ -1811,162 +1819,162 @@ export function CanvasPreview() {
   };
 
   const renderSelectionOverlay = (l: AnyLayer) => {
-  const abs = computeAbsoluteLTFor(l.id);
-  const a = getAnchor(l);
-  const transformOriginY = abs.useYUp ? (1 - a.y) * 100 : a.y * 100;
-  const inv = 1 / Math.max(0.0001, scale);
-  const px = (n: number) => Math.max(0, n * inv);
-  const rot = (l.rotation ?? 0) as number;
-  const r180 = ((rot % 180) + 180) % 180;
-  const edgeCursor = (axis: 'x' | 'y'): React.CSSProperties["cursor"] => {
-    const vertical = r180 >= 45 && r180 < 135;
-    if (axis === 'x') return vertical ? 'ns-resize' : 'ew-resize';
-    return vertical ? 'ew-resize' : 'ns-resize';
-  };
-  const cornerCursor = (corner: 'nw' | 'ne' | 'se' | 'sw'): React.CSSProperties["cursor"] => {
-    const flip = r180 >= 45 && r180 < 135;
-    const base = (corner === 'nw' || corner === 'se') ? 'nwse-resize' : 'nesw-resize';
-    if (!flip) return base;
-    return base === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
-  };
-  const boxStyle: React.CSSProperties = {
-    position: "absolute",
-    left: abs.left,
-    top: abs.top,
-    width: l.size.w,
-    height: l.size.h,
-    transform: `rotateX(${-((l as any).rotationX ?? 0)}deg) rotateY(${-((l as any).rotationY ?? 0)}deg) rotate(${-(l.rotation ?? 0)}deg)`,
-    transformOrigin: `${a.x * 100}% ${transformOriginY}%`,
-    backfaceVisibility: "hidden",
-    outline: `${px(1)}px solid rgba(59,130,246,0.9)`,
-    boxShadow: `inset 0 0 0 ${px(2)}px rgba(59,130,246,0.2)`,
-    pointerEvents: "none",
-    zIndex: 10000,
-  };
-  const handleStyleBase: React.CSSProperties = {
-    position: "absolute",
-    width: px(12),
-    height: px(12),
-    background: "#ffffff",
-    border: `${px(1)}px solid #3b82f6`,
-    borderRadius: px(2),
-    boxShadow: `0 0 0 ${px(1)}px rgba(0,0,0,0.05)`,
-    transform: "translate(-50%, -50%)",
-    pointerEvents: "auto",
-    cursor: "nwse-resize",
-  };
-  let handles: Array<{ key: string; x: string | number; y: string | number; cursor: React.CSSProperties["cursor"]; h: any }> = [];
-  if (l.type === 'text') {
-    const wrapped = (((l as any).wrapped ?? 1) as number) === 1;
-    if (wrapped) {
+    const abs = computeAbsoluteLTFor(l.id);
+    const a = getAnchor(l);
+    const transformOriginY = abs.useYUp ? (1 - a.y) * 100 : a.y * 100;
+    const inv = 1 / Math.max(0.0001, scale);
+    const px = (n: number) => Math.max(0, n * inv);
+    const rot = (l.rotation ?? 0) as number;
+    const r180 = ((rot % 180) + 180) % 180;
+    const edgeCursor = (axis: 'x' | 'y'): React.CSSProperties["cursor"] => {
+      const vertical = r180 >= 45 && r180 < 135;
+      if (axis === 'x') return vertical ? 'ns-resize' : 'ew-resize';
+      return vertical ? 'ew-resize' : 'ns-resize';
+    };
+    const cornerCursor = (corner: 'nw' | 'ne' | 'se' | 'sw'): React.CSSProperties["cursor"] => {
+      const flip = r180 >= 45 && r180 < 135;
+      const base = (corner === 'nw' || corner === 'se') ? 'nwse-resize' : 'nesw-resize';
+      if (!flip) return base;
+      return base === 'nwse-resize' ? 'nesw-resize' : 'nwse-resize';
+    };
+    const boxStyle: React.CSSProperties = {
+      position: "absolute",
+      left: abs.left,
+      top: abs.top,
+      width: l.size.w,
+      height: l.size.h,
+      transform: `rotateX(${-((l as any).rotationX ?? 0)}deg) rotateY(${-((l as any).rotationY ?? 0)}deg) rotate(${-(l.rotation ?? 0)}deg)`,
+      transformOrigin: `${a.x * 100}% ${transformOriginY}%`,
+      backfaceVisibility: "hidden",
+      outline: `${px(1)}px solid rgba(59,130,246,0.9)`,
+      boxShadow: `inset 0 0 0 ${px(2)}px rgba(59,130,246,0.2)`,
+      pointerEvents: "none",
+      zIndex: 10000,
+    };
+    const handleStyleBase: React.CSSProperties = {
+      position: "absolute",
+      width: px(12),
+      height: px(12),
+      background: "#ffffff",
+      border: `${px(1)}px solid #3b82f6`,
+      borderRadius: px(2),
+      boxShadow: `0 0 0 ${px(1)}px rgba(0,0,0,0.05)`,
+      transform: "translate(-50%, -50%)",
+      pointerEvents: "auto",
+      cursor: "nwse-resize",
+    };
+    let handles: Array<{ key: string; x: string | number; y: string | number; cursor: React.CSSProperties["cursor"]; h: any }> = [];
+    if (l.type === 'text') {
+      const wrapped = (((l as any).wrapped ?? 1) as number) === 1;
+      if (wrapped) {
+        handles = [
+          { key: "e", x: "100%", y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "e", e) },
+          { key: "w", x: 0, y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "w", e) },
+        ];
+      } else {
+        handles = [];
+      }
+    } else {
       handles = [
+        { key: "nw", x: 0, y: 0, cursor: cornerCursor('nw'), h: (e: any) => beginResize(l, "nw", e) },
+        { key: "n", x: "50%", y: 0, cursor: edgeCursor('y'), h: (e: any) => beginResize(l, "n", e) },
+        { key: "ne", x: "100%", y: 0, cursor: cornerCursor('ne'), h: (e: any) => beginResize(l, "ne", e) },
         { key: "e", x: "100%", y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "e", e) },
+        { key: "se", x: "100%", y: "100%", cursor: cornerCursor('se'), h: (e: any) => beginResize(l, "se", e) },
+        { key: "s", x: "50%", y: "100%", cursor: edgeCursor('y'), h: (e: any) => beginResize(l, "s", e) },
+        { key: "sw", x: 0, y: "100%", cursor: cornerCursor('sw'), h: (e: any) => beginResize(l, "sw", e) },
         { key: "w", x: 0, y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "w", e) },
       ];
-    } else {
-      handles = [];
     }
-  } else {
-    handles = [
-      { key: "nw", x: 0, y: 0, cursor: cornerCursor('nw'), h: (e: any) => beginResize(l, "nw", e) },
-      { key: "n", x: "50%", y: 0, cursor: edgeCursor('y'), h: (e: any) => beginResize(l, "n", e) },
-      { key: "ne", x: "100%", y: 0, cursor: cornerCursor('ne'), h: (e: any) => beginResize(l, "ne", e) },
-      { key: "e", x: "100%", y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "e", e) },
-      { key: "se", x: "100%", y: "100%", cursor: cornerCursor('se'), h: (e: any) => beginResize(l, "se", e) },
-      { key: "s", x: "50%", y: "100%", cursor: edgeCursor('y'), h: (e: any) => beginResize(l, "s", e) },
-      { key: "sw", x: 0, y: "100%", cursor: cornerCursor('sw'), h: (e: any) => beginResize(l, "sw", e) },
-      { key: "w", x: 0, y: "50%", cursor: edgeCursor('x'), h: (e: any) => beginResize(l, "w", e) },
-    ];
-  }
-  const rotationHandleStyle: React.CSSProperties = {
-    position: "absolute",
-    left: "50%",
-    top: -px(20),
-    width: px(10),
-    height: px(10),
-    background: "#fff",
-    border: `${px(1)}px solid #3b82f6`,
-    borderRadius: 9999,
-    transform: "translate(-50%, -50%)",
-    cursor: "grab",
-    pointerEvents: "auto",
-  };
-  // showBoth removed: no overlay rendering of the non-active CA
-  return (
-    <>
-      <div style={boxStyle}>
-        {/* Resize handles */}
-        {handles.map((h) => {
-          const hitStyle: React.CSSProperties = {
-            position: 'absolute',
-            left: h.x as any,
-            top: h.y as any,
-            width: px(20),
-            height: px(20),
-            transform: 'translate(-50%, -50%)',
-            background: 'transparent',
-            pointerEvents: 'auto',
-            cursor: h.cursor,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          };
-          const innerStyle: React.CSSProperties = {
-            ...handleStyleBase,
-            position: 'static',
-            transform: 'none',
-            cursor: h.cursor,
-          };
-          return (
-            <div
-              key={h.key}
-              style={hitStyle}
-              onMouseDown={h.h}
-              onTouchStart={(e) => {
-                if (e.touches.length === 1) {
-                  e.preventDefault();
-                  (h.h as any)(touchToMouseLike(e.touches[0]));
-                }
-              }}
-            >
-              <div style={innerStyle} />
-            </div>
-          );
-        })}
-        {/* Rotation handle */}
-        <div
-          style={rotationHandleStyle}
-          onMouseDown={(e) => beginRotate(l, e)}
-          onTouchStart={(e) => {
-            if (e.touches.length === 1) {
-              e.preventDefault();
-              beginRotate(l, touchToMouseLike(e.touches[0]));
-            }
-          }}
-        />
-        {/* Anchor point indicator */}
-        {showAnchorPoint && (
+    const rotationHandleStyle: React.CSSProperties = {
+      position: "absolute",
+      left: "50%",
+      top: -px(20),
+      width: px(10),
+      height: px(10),
+      background: "#fff",
+      border: `${px(1)}px solid #3b82f6`,
+      borderRadius: 9999,
+      transform: "translate(-50%, -50%)",
+      cursor: "grab",
+      pointerEvents: "auto",
+    };
+    // showBoth removed: no overlay rendering of the non-active CA
+    return (
+      <>
+        <div style={boxStyle}>
+          {/* Resize handles */}
+          {handles.map((h) => {
+            const hitStyle: React.CSSProperties = {
+              position: 'absolute',
+              left: h.x as any,
+              top: h.y as any,
+              width: px(20),
+              height: px(20),
+              transform: 'translate(-50%, -50%)',
+              background: 'transparent',
+              pointerEvents: 'auto',
+              cursor: h.cursor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            };
+            const innerStyle: React.CSSProperties = {
+              ...handleStyleBase,
+              position: 'static',
+              transform: 'none',
+              cursor: h.cursor,
+            };
+            return (
+              <div
+                key={h.key}
+                style={hitStyle}
+                onMouseDown={h.h}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    e.preventDefault();
+                    (h.h as any)(touchToMouseLike(e.touches[0]));
+                  }
+                }}
+              >
+                <div style={innerStyle} />
+              </div>
+            );
+          })}
+          {/* Rotation handle */}
           <div
-            style={{
-              position: "absolute",
-              left: `${a.x * 100}%`,
-              top: `${transformOriginY}%`,
-              width: px(8),
-              height: px(8),
-              background: "#ef4444",
-              border: `${px(1.5)}px solid #ffffff`,
-              borderRadius: 9999,
-              transform: "translate(-50%, -50%)",
-              pointerEvents: "none",
-              boxShadow: `0 0 0 ${px(1)}px rgba(0,0,0,0.2)`,
-              zIndex: 1,
+            style={rotationHandleStyle}
+            onMouseDown={(e) => beginRotate(l, e)}
+            onTouchStart={(e) => {
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                beginRotate(l, touchToMouseLike(e.touches[0]));
+              }
             }}
           />
-        )}
-      </div>
-    </>
-  );
-};
+          {/* Anchor point indicator */}
+          {showAnchorPoint && (
+            <div
+              style={{
+                position: "absolute",
+                left: `${a.x * 100}%`,
+                top: `${transformOriginY}%`,
+                width: px(8),
+                height: px(8),
+                background: "#ef4444",
+                border: `${px(1.5)}px solid #ffffff`,
+                borderRadius: 9999,
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "none",
+                boxShadow: `0 0 0 ${px(1)}px rgba(0,0,0,0.2)`,
+                zIndex: 1,
+              }}
+            />
+          )}
+        </div>
+      </>
+    );
+  };
 
   return (
     <Card
@@ -2088,7 +2096,7 @@ export function CanvasPreview() {
         }
         selectLayer(null);
       }}
-      onKeyDown={() => {  }}
+      onKeyDown={() => {}}
     >
       <div
         className="absolute inset-0 dark:hidden cursor-[inherit]"
@@ -2099,6 +2107,7 @@ export function CanvasPreview() {
         style={{ background: "repeating-conic-gradient(#0b1220 0% 25%, #1f2937 0% 50%) 50% / 20px 20px" }}
       />
       <div
+        id="root-canvas"
         className="absolute"
         style={{
           width: doc?.meta.width,
@@ -2124,6 +2133,10 @@ export function CanvasPreview() {
           <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
             {renderedLayers.map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))}
           </div>
+        ) : currentKey === 'wallpaper' ? (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+            {renderedLayers.map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))}
+          </div>
         ) : null}
         {showClockOverlay && (() => {
           const w = doc?.meta.width ?? 0;
@@ -2131,7 +2144,7 @@ export function CanvasPreview() {
           const targetRatio = 1170 / 2532;
           const currentRatio = w / h;
           const isMatchingAspectRatio = Math.abs(currentRatio - targetRatio) < 0.01;
-          
+
           if (isMatchingAspectRatio) {
             return (
               <div
@@ -2152,7 +2165,7 @@ export function CanvasPreview() {
         })()}
         {currentKey === 'floating' && (
           <div style={{ position: 'absolute', inset: 0, zIndex: clockDepthEffect ? 1000 : 100 }}>
-            {showBackground 
+            {showBackground
               ? renderedLayers.slice(backgroundLayers.length).map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))
               : renderedLayers.map((l) => renderLayer(l, undefined as any, undefined as any, undefined as any, current?.assets))
             }
@@ -2194,9 +2207,29 @@ export function CanvasPreview() {
           return <>{guides}</>;
         })()}
       </div>
-
+      {useGyroControls && (
+        <GyroControls
+          value={{ x: gyroX, y: gyroY }}
+          onChange={(xy) => {
+            setGyroX(xy.x);
+            setGyroY(xy.y);
+          }}
+        />
+      )}
       {/* Preview toggles (bottom-right) */}
-      <div className="absolute bottom-2 right-2 z-10 flex items-center gap-2 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 shadow-sm">
+      <div className="absolute flex flex-col bottom-2 right-2 z-10 gap-2 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 shadow-sm">
+        <Button
+          type="button"
+          size="icon"
+          variant={useGyroControls ? "default" : "outline"}
+          aria-pressed={useGyroControls}
+          aria-label="Toggle gyro"
+          title="Gyro"
+          onClick={() => setUseGyroControls((v: boolean) => !v)}
+          className={`h-8 w-8 ${useGyroControls ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+        >
+          <Rotate3D className="h-4 w-4" />
+        </Button>
         {(() => {
           const w = doc?.meta.width ?? 0;
           const h = doc?.meta.height ?? 0;
@@ -2244,7 +2277,7 @@ export function CanvasPreview() {
                       />
                     </div>
                     <div className="text-xs text-muted-foreground pt-2 border-t">
-                      {clockDepthEffect 
+                      {clockDepthEffect
                         ? "Floating layers appear above clock"
                         : "Clock appears above all layers"}
                     </div>

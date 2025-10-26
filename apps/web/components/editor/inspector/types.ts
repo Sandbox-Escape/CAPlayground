@@ -33,7 +33,7 @@ export const findById = (layers: AnyLayer[], id: string | null | undefined): Any
   if (!id) return undefined;
   for (const l of layers) {
     if (l.id === id) return l;
-    if (l.type === "group") {
+    if (l.children?.length) {
       const found = findById(l.children, id);
       if (found) return found;
     }

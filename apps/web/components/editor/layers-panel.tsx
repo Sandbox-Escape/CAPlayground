@@ -7,7 +7,7 @@ import { Plus, MoreVertical, ChevronRight, ChevronDown, Copy, Trash2, Check } fr
 import { useEditor } from "./editor-context";
 import { useEffect, useRef, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { AnyLayer, GroupLayer } from "@/lib/ca/types";
+import type { AnyLayer } from "@/lib/ca/types";
 
 export function LayersPanel() {
   const {
@@ -21,15 +21,16 @@ export function LayersPanel() {
     deleteLayer,
     duplicateLayer,
     moveLayer,
-    moveLayerInto,
     updateLayer,
     addEmitterLayer,
+    addTransformLayer,
   } = useEditor();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const key = doc?.activeCA ?? 'floating';
   const current = doc?.docs?.[key];
   const layers = current?.layers ?? [];
+  const isGyro = doc?.meta?.gyroEnabled ?? false;
   const selectedId = current?.selectedId ?? null;
   const selectedLayer = layers.find(l => l.id === selectedId)
 
@@ -86,8 +87,7 @@ export function LayersPanel() {
   };
 
   const renderItem = (l: AnyLayer, depth: number) => {
-    const isGroup = l.type === "group";
-    const hasChildren = isGroup && (l as GroupLayer).children.length > 0;
+    const hasChildren = (l.children?.length ?? 0) > 0;
     const isCollapsed = collapsed.has(l.id);
     const isChecked = multiSelectedIds.includes(l.id);
 
@@ -142,28 +142,26 @@ export function LayersPanel() {
             setDragOverId(null);
             setDropPosition(null);
             if (!src || src === l.id) return;
-            if (isGroup && (e.altKey || e.ctrlKey || e.metaKey)) {
-              moveLayerInto(src, l.id);
-            } else {
-              let beforeId = l.id;
-              if (position === 'after') {
-                const findNextSibling = (layers: AnyLayer[], targetId: string): string | null => {
-                  for (let i = 0; i < layers.length; i++) {
-                    if (layers[i].id === targetId) {
-                      return i < layers.length - 1 ? layers[i + 1].id : null;
-                    }
-                    if (layers[i].type === 'group') {
-                      const result = findNextSibling((layers[i] as GroupLayer).children, targetId);
-                      if (result !== undefined) return result;
-                    }
+            let beforeId = l.id;
+            if (position === 'after') {
+              const findNextSibling = (layers: AnyLayer[], targetId: string): string | null => {
+                for (let i = 0; i < layers.length; i++) {
+                  if (layers[i].id === targetId) {
+                    return i < layers.length - 1 ? layers[i + 1].id : null;
                   }
-                  return undefined as any;
-                };
-                const nextId = findNextSibling(layers, l.id);
-                beforeId = nextId !== undefined ? nextId : null as any;
-              }
-              moveLayer(src, beforeId);
+                  if (layers[i].children?.length) {
+                    const children = layers[i].children;
+                    if (!children) return null
+                    const result = findNextSibling(children, targetId);
+                    if (result !== undefined) return result;
+                  }
+                }
+                return undefined as any;
+              };
+              const nextId = findNextSibling(layers, l.id);
+              beforeId = nextId !== undefined ? nextId : null as any;
             }
+            moveLayer(src, beforeId);
           }}
         >
           <div className="truncate flex-1 min-w-0 flex items-center gap-1">
@@ -243,12 +241,11 @@ export function LayersPanel() {
         )}
       </div>
     );
-    if (isGroup && !isCollapsed) {
-      const g = l as GroupLayer;
+    if (hasChildren && !isCollapsed) {
       return (
         <div key={l.id}>
           {row}
-          {g.children.map((c) => renderItem(c, depth + 1))}
+          {l.children?.map((c) => renderItem(c, depth + 1))}
         </div>
       );
     }
@@ -298,6 +295,9 @@ export function LayersPanel() {
               <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>Image Layer…</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => videoInputRef.current?.click()}>Video Layer…</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => addEmitterLayer()}>Emitter Layer</DropdownMenuItem>
+              {isGyro && (
+                <DropdownMenuItem onSelect={() => addTransformLayer()}>Transform Layer</DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         }

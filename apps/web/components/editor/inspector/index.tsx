@@ -130,8 +130,10 @@ export function Inspector() {
     if (selected?.type === 'video') {
       baseTabs.push({ id: 'video' as TabId, icon: Video, label: 'Video' });
     }
-    baseTabs.push({ id: 'animations' as TabId, icon: Play, label: 'Animations' });
-    if (doc?.meta.gyroEnabled) {
+    if (selected?.type !== 'transform') {
+      baseTabs.push({ id: 'animations' as TabId, icon: Play, label: 'Animations' });
+    }
+    if (doc?.meta.gyroEnabled && selected?.type === 'transform') {
       baseTabs.push({ id: 'gyro' as TabId, icon: Smartphone, label: 'Gyro (Parallax)' });
     }
     if (selected?.type === 'emitter') {

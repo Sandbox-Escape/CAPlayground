@@ -217,11 +217,11 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
       
       const mkCaml = async (doc: { root: any; assets?: Record<string, CAAsset>; states?: string[]; stateOverrides?: any; stateTransitions?: any }, docName: string) => {
         const root = doc.root as any
-        const layers = root?.type === 'group' && Array.isArray(root.children) ? root.children : (root ? [root] : [])
+        const layers = Array.isArray(root.children) ? root.children : (root ? [root] : [])
         const group = {
           id: `${id}-${docName}`,
-          name: `${name} ${docName}`,
-          type: 'group',
+          name: `Root Layer`,
+          type: 'basic',
           position: { x: Math.round(width/2), y: Math.round(height/2) },
           size: { w: width, h: height },
           backgroundColor: root?.backgroundColor ?? '#e5e7eb',
