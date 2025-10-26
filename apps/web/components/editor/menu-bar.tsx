@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Pencil, Trash2, Sun, Moon, Keyboard, PanelLeft, PanelRight, Settings as Gear, ArrowUpDown, Layers as LayersIcon, Check, X, Star, MoreVertical, Eye, EyeOff, Undo2, Redo2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Sun, Moon, Keyboard, PanelLeft, PanelRight, Settings as Gear, ArrowUpDown, Layers as LayersIcon, Check, X, Star, MoreVertical, Eye, EyeOff, Undo2, Redo2, Youtube } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEditor } from "./editor-context";
 import type { AnyLayer, GroupLayer } from "@/lib/ca/types";
@@ -615,15 +615,26 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
                     <div className="py-6 flex flex-col items-center text-center gap-3">
                       <div className="text-2xl font-semibold">Thank you for using CAPlayground!</div>
                       <div className="text-sm text-muted-foreground">PLEASE STAR THE GITHUB REPO (You'll make my day)</div>
-                      <a
-                        href="https://github.com/CAPlayground/CAPlayground"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted"
-                      >
-                        <Star className="h-4 w-4" />
-                        Star the repo
-                      </a>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <a
+                          href="https://github.com/CAPlayground/CAPlayground"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted"
+                        >
+                          <Star className="h-4 w-4" />
+                          Star the repo
+                        </a>
+                        <a
+                          href="https://www.youtube.com/watch?v=ZmZpFaGaRIM"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted"
+                        >
+                          <Youtube className="h-4 w-4" />
+                          Watch Tutorial
+                        </a>
+                      </div>
                       <div className="pt-2">
                         <Button onClick={() => setExportOpen(false)}>Close</Button>
                       </div>
