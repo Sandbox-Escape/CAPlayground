@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import Link from "next/link"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Upload, Edit, Download, X, Copy, Check } from "lucide-react"
+import { Upload, Edit, Download, X, Copy, Check, Youtube } from "lucide-react"
 import { SubmitWallpaperDialog } from "./SubmitWallpaperDialog"
 import {
   Dialog,
@@ -374,6 +374,17 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                     <Edit className="h-4 w-4 mr-2" />
                     {importingWallpaper === item.name ? 'Opening...' : 'Open in Editor'}
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open('https://www.youtube.com/watch?v=ZmZpFaGaRIM', '_blank')
+                    }}
+                  >
+                    <Youtube className="h-4 w-4 mr-2" />
+                    Tutorial
+                  </Button>
                   {isIOS ? (
                     <Button 
                       variant="outline" 
@@ -477,6 +488,14 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
 
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-3">
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.open('https://www.youtube.com/watch?v=ZmZpFaGaRIM', '_blank')}
+                    >
+                      <Youtube className="h-4 w-4 mr-2" />
+                      Watch Tutorial
+                    </Button>
                     <div className="flex flex-col sm:flex-row gap-3">
                       <Button 
                         onClick={() => {
