@@ -1008,6 +1008,8 @@ export function CanvasPreview() {
       setSnapState({ x: null, y: null });
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove as any);
+      window.removeEventListener("touchend", onUp as any);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp as any);
@@ -1970,7 +1972,6 @@ export function CanvasPreview() {
     <Card
       ref={ref}
       className={`relative w-full h-full overflow-hidden p-0 ${isPanning ? 'cursor-grabbing' : ''}`}
-      style={{ touchAction: 'none' }}
       data-tour-id="canvas"
       onDragOver={(e) => {
         e.preventDefault();
