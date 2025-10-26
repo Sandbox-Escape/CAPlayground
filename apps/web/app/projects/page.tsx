@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,6 @@ import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
 type DeviceSpec = { name: string; width: number; height: number; category?: string };
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import type React from "react";
 import type { AnyLayer, CAProject, CAAsset } from "@/lib/ca/types";
 type DualCABundle = {
   project: { width: number; height: number; geometryFlipped: 0|1 };
@@ -60,6 +59,161 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface Project { id: string; name: string; createdAt: string; width?: number; height?: number }
+
+const ProjectThumb = React.memo(function ProjectThumb({
+  doc,
+  width,
+  height,
+  background,
+  freeze = false,
+}: {
+  doc?: { meta: Pick<CAProject, 'width'|'height'|'background'>; layers: AnyLayer[] },
+  width: number,
+  height: number,
+  background: string,
+  freeze?: boolean,
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (freeze) return;
+      const r = el.getBoundingClientRect();
+      setWrapSize((prev) => {
+        const nw = Math.round(r.width);
+        const nh = Math.round(r.height);
+        if (prev.w === nw && prev.h === nh) return prev;
+        return { w: nw, h: nh };
+      });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [freeze]);
+  const w = (doc?.meta.width ?? width ?? 390);
+  const h = (doc?.meta.height ?? height ?? 844);
+  const s = wrapSize.w > 0 && wrapSize.h > 0 ? Math.min(wrapSize.w / w, wrapSize.h / h) : 1;
+  const ox = (wrapSize.w - w * s) / 2;
+  const oy = (wrapSize.h - h * s) / 2;
+
+  const getAnchor = (l: AnyLayer) => ({ x: (l as any).anchorPoint?.x ?? 0.5, y: (l as any).anchorPoint?.y ?? 0.5 });
+  const computeCssLT = (l: AnyLayer, containerH: number, useYUp: boolean) => {
+    const a = getAnchor(l);
+    const left = (l.position.x) - a.x * l.size.w;
+    const top = useYUp ? (containerH - (l.position.y + (1 - a.y) * l.size.h)) : (l.position.y - a.y * l.size.h);
+    return { left, top, a };
+  };
+  const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
+    const { left, top, a } = computeCssLT(l, containerH, useYUp);
+    const common: React.CSSProperties = {
+      position: 'absolute',
+      left,
+      top,
+      width: l.size.w,
+      height: l.size.h,
+      transform: `rotateX(${-((l as any).rotationX ?? 0)}deg) rotateY(${-((l as any).rotationY ?? 0)}deg) rotate(${-((l as any).rotation ?? 0)}deg)`,
+      transformOrigin: `${a.x * 100}% ${a.y * 100}%`,
+      opacity: (l as any).opacity ?? 1,
+      display: (l as any).visible === false ? 'none' as any : undefined,
+      overflow: 'hidden',  
+      backfaceVisibility: 'hidden',
+      transformStyle: 'preserve-3d',
+    };
+    if (l.type === 'text') {
+      const t = l as any;
+      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>{t.text}</div>;
+    }
+    if (l.type === 'image') {
+      const im = l as any;
+      return <img key={l.id} src={im.src} alt={im.name} draggable={false} style={{ ...common, objectFit: 'fill' as const, maxWidth: 'none', maxHeight: 'none' }} />;
+    }
+    if (l.type === 'gradient') {
+      const grad = l as any;
+      const gradType = grad.gradientType || 'axial';
+      const startX = (grad.startPoint?.x ?? 0) * 100;
+      const startY = (grad.startPoint?.y ?? 0) * 100;
+      const endX = (grad.endPoint?.x ?? 1) * 100;
+      const endY = (grad.endPoint?.y ?? 1) * 100;
+      
+      const colors = (grad.colors || []).map((c: any) => {
+        const opacity = c.opacity ?? 1;
+        const hex = c.color || '#000000';
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }).join(', ');
+      
+      let background = '';
+      const isSamePoint = Math.abs(startX - endX) < 0.01 && Math.abs(startY - endY) < 0.01;
+      
+      if (isSamePoint) {
+        const firstColor = (grad.colors || [])[0];
+        if (firstColor) {
+          const opacity = firstColor.opacity ?? 1;
+          const hex = firstColor.color || '#000000';
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          background = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+        }
+      } else if (gradType === 'axial') {
+        const dx = endX - startX;
+        const dy = -(endY - startY);
+        const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+        background = `linear-gradient(${angle}deg, ${colors})`;
+      } else if (gradType === 'radial') {
+        background = `radial-gradient(circle at ${startX}% ${100 - startY}%, ${colors})`;
+      } else if (gradType === 'conic') {
+        const dx = endX - startX;
+        const dy = -(endY - startY);
+        const angle = Math.atan2(dy, dx) + Math.PI / 2;
+        background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
+      }
+      
+      return <div key={l.id} style={{ ...common, background }} />;
+    }
+    if (l.type === 'shape') {
+      const s = l as any;
+      const corner = (s.cornerRadius ?? s.radius) ?? 0;
+      const borderRadius = s.shape === 'circle' ? 9999 : corner;
+      const style: React.CSSProperties = { ...common, background: s.fill, borderRadius };
+      if (s.borderColor && s.borderWidth) {
+        style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
+      }
+      return <div key={l.id} style={style} />;
+    }
+    if ((l as any).type === 'group') {
+      const g = l as any;
+      return (
+        <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
+          {Array.isArray(g.children) ? g.children.map((c: AnyLayer) => renderLayer(c, g.size.h, useYUp)) : null}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div ref={wrapRef} className="w-full h-full relative bg-background">
+      <div
+        className="absolute"
+        style={{
+          width: w,
+          height: h,
+          background: (doc?.meta.background ?? background ?? '#e5e7eb'),
+          transform: `translate(${ox}px, ${oy}px) scale(${s})`,
+          transformOrigin: 'top left',
+          borderRadius: 4,
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
+        }}
+      >
+        {((doc?.layers) || []).map((l) => renderLayer(l, h, true))}
+      </div>
+    </div>
+  );
+});
 
 function ProjectsContent() {
   const searchParams = useSearchParams();
@@ -395,142 +549,7 @@ function ProjectsContent() {
 
   
 
-  function ProjectThumb({ doc }: { doc: { meta: Pick<CAProject, 'width'|'height'|'background'>; layers: AnyLayer[] } }) {
-    const wrapRef = useRef<HTMLDivElement | null>(null);
-    const [wrapSize, setWrapSize] = useState({ w: 0, h: 0 });
-    useEffect(() => {
-      const el = wrapRef.current;
-      if (!el) return;
-      const ro = new ResizeObserver(() => {
-        const r = el.getBoundingClientRect();
-        setWrapSize({ w: Math.round(r.width), h: Math.round(r.height) });
-      });
-      ro.observe(el);
-      return () => ro.disconnect();
-    }, []);
-    const w = doc.meta.width || 390;
-    const h = doc.meta.height || 844;
-    const s = wrapSize.w > 0 && wrapSize.h > 0 ? Math.min(wrapSize.w / w, wrapSize.h / h) : 1;
-    const ox = (wrapSize.w - w * s) / 2;
-    const oy = (wrapSize.h - h * s) / 2;
-
-    const getAnchor = (l: AnyLayer) => ({ x: (l as any).anchorPoint?.x ?? 0.5, y: (l as any).anchorPoint?.y ?? 0.5 });
-    const computeCssLT = (l: AnyLayer, containerH: number, useYUp: boolean) => {
-      const a = getAnchor(l);
-      const left = (l.position.x) - a.x * l.size.w;
-      const top = useYUp ? (containerH - (l.position.y + (1 - a.y) * l.size.h)) : (l.position.y - a.y * l.size.h);
-      return { left, top, a };
-    };
-    const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
-      const { left, top, a } = computeCssLT(l, containerH, useYUp);
-      const common: React.CSSProperties = {
-        position: 'absolute',
-        left,
-        top,
-        width: l.size.w,
-        height: l.size.h,
-        transform: `rotateX(${-((l as any).rotationX ?? 0)}deg) rotateY(${-((l as any).rotationY ?? 0)}deg) rotate(${-((l as any).rotation ?? 0)}deg)`,
-        transformOrigin: `${a.x * 100}% ${a.y * 100}%`,
-        opacity: (l as any).opacity ?? 1,
-        display: (l as any).visible === false ? 'none' as any : undefined,
-        overflow: 'hidden',  
-        backfaceVisibility: 'hidden',
-        transformStyle: 'preserve-3d',
-      };
-      if (l.type === 'text') {
-        const t = l as any;
-        return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>{t.text}</div>;
-      }
-      if (l.type === 'image') {
-        const im = l as any;
-        return <img key={l.id} src={im.src} alt={im.name} draggable={false} style={{ ...common, objectFit: 'fill' as const, maxWidth: 'none', maxHeight: 'none' }} />;
-      }
-      if (l.type === 'gradient') {
-        const grad = l as any;
-        const gradType = grad.gradientType || 'axial';
-        const startX = (grad.startPoint?.x ?? 0) * 100;
-        const startY = (grad.startPoint?.y ?? 0) * 100;
-        const endX = (grad.endPoint?.x ?? 1) * 100;
-        const endY = (grad.endPoint?.y ?? 1) * 100;
-        
-        const colors = (grad.colors || []).map((c: any) => {
-          const opacity = c.opacity ?? 1;
-          const hex = c.color || '#000000';
-          const r = parseInt(hex.slice(1, 3), 16);
-          const g = parseInt(hex.slice(3, 5), 16);
-          const b = parseInt(hex.slice(5, 7), 16);
-          return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-        }).join(', ');
-        
-        let background = '';
-        const isSamePoint = Math.abs(startX - endX) < 0.01 && Math.abs(startY - endY) < 0.01;
-        
-        if (isSamePoint) {
-          const firstColor = (grad.colors || [])[0];
-          if (firstColor) {
-            const opacity = firstColor.opacity ?? 1;
-            const hex = firstColor.color || '#000000';
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            background = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-          }
-        } else if (gradType === 'axial') {
-          const dx = endX - startX;
-          const dy = -(endY - startY);
-          const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
-          background = `linear-gradient(${angle}deg, ${colors})`;
-        } else if (gradType === 'radial') {
-          background = `radial-gradient(circle at ${startX}% ${100 - startY}%, ${colors})`;
-        } else if (gradType === 'conic') {
-          const dx = endX - startX;
-          const dy = -(endY - startY);
-          const angle = Math.atan2(dy, dx) + Math.PI / 2;
-          background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
-        }
-        
-        return <div key={l.id} style={{ ...common, background }} />;
-      }
-      if (l.type === 'shape') {
-        const s = l as any;
-        const corner = (s.cornerRadius ?? s.radius) ?? 0;
-        const borderRadius = s.shape === 'circle' ? 9999 : corner;
-        const style: React.CSSProperties = { ...common, background: s.fill, borderRadius };
-        if (s.borderColor && s.borderWidth) {
-          style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
-        }
-        return <div key={l.id} style={style} />;
-      }
-      if ((l as any).type === 'group') {
-        const g = l as any;
-        return (
-          <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
-            {Array.isArray(g.children) ? g.children.map((c: AnyLayer) => renderLayer(c, g.size.h, useYUp)) : null}
-          </div>
-        );
-      }
-      return null;
-    };
-
-    return (
-      <div ref={wrapRef} className="w-full h-full relative bg-background">
-        <div
-          className="absolute"
-          style={{
-            width: w,
-            height: h,
-            background: doc.meta.background ?? '#e5e7eb',
-            transform: `translate(${ox}px, ${oy}px) scale(${s})`,
-            transformOrigin: 'top left',
-            borderRadius: 4,
-            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
-          }}
-        >
-          {(doc.layers || []).map((l) => renderLayer(l, h, true))}
-        </div>
-      </div>
-    );
-  }
+  
 
   const filteredProjects = useMemo(() => {
     const now = new Date();
@@ -1776,7 +1795,13 @@ function ProjectsContent() {
                       {/* Preview thumbnail square */}
                       <div className="mb-3 overflow-hidden rounded-md border bg-background">
                         <AspectRatio ratio={1}>
-                          <ProjectThumb doc={doc} />
+                          <ProjectThumb
+                            doc={thumbDocs[project.id]}
+                            width={pv?.width || project.width || 390}
+                            height={pv?.height || project.height || 844}
+                            background={pv?.bg || '#e5e7eb'}
+                            freeze={isRenameOpen}
+                          />
                         </AspectRatio>
                       </div>
                       <div className="flex items-start justify-between">
@@ -1910,7 +1935,13 @@ function ProjectsContent() {
                             </div>
                           )}
                           <div className="flex-shrink-0 w-20 h-20 overflow-hidden rounded-md border bg-background">
-                            <ProjectThumb doc={doc} />
+                            <ProjectThumb
+                              doc={thumbDocs[project.id]}
+                              width={pv?.width || project.width || 390}
+                              height={pv?.height || project.height || 844}
+                              background={pv?.bg || '#e5e7eb'}
+                              freeze={isRenameOpen}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="font-medium truncate" title={project.name}>
