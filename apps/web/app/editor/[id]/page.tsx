@@ -59,6 +59,48 @@ export default function EditorPage() {
   type PanelKey = 'layers_states' | 'inspector';
   const [mobilePanelScreen, setMobilePanelScreen] = useState<PanelKey>('layers_states');
   const [mobileView, setMobileView] = useState<'canvas' | 'panels'>('canvas');
+
+  useEffect(() => {
+    const hasOpenDialog = () => document.querySelector('[role="dialog"]') !== null;
+    
+    if (isMobilePortrait && mobileView === 'canvas' && !hasOpenDialog()) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    }
+    
+    const observer = new MutationObserver(() => {
+      if (isMobilePortrait && mobileView === 'canvas') {
+        if (hasOpenDialog()) {
+          document.body.style.overflow = '';
+          document.body.style.position = '';
+          document.body.style.width = '';
+          document.body.style.height = '';
+        } else {
+          document.body.style.overflow = 'hidden';
+          document.body.style.position = 'fixed';
+          document.body.style.width = '100%';
+          document.body.style.height = '100%';
+        }
+      }
+    });
+    
+    observer.observe(document.body, { childList: true, subtree: true });
+    
+    return () => {
+      observer.disconnect();
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.height = '';
+    };
+  }, [isMobilePortrait, mobileView]);
   const mobileContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
