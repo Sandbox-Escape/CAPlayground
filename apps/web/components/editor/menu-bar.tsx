@@ -60,7 +60,6 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
   const [showManualSave, setShowManualSave] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showBackground, setShowBackground] = useLocalStorage<boolean>("caplay_preview_show_background", true);
-  const [storageFallback, setStorageFallback] = useState(false);
   const [exportView, setExportView] = useState<'select'|'success'>("select");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
@@ -72,11 +71,6 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
     setMounted(true);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try { setStorageFallback(!(await isUsingOPFS())); } catch {}
-    })();
-  }, []);
 
   useEffect(() => {
     let aborted = false;
@@ -348,8 +342,8 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="h-8 px-2">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                {doc?.meta.name ?? "Project"}
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline ml-2">{doc?.meta.name ?? "Project"}</span>
               </Button>
             </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
@@ -403,24 +397,33 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full border ${
-                  savingStatus === 'saving'
-                    ? 'border-amber-500 text-amber-700 dark:text-amber-400'
-                    : savingStatus === 'saved'
-                    ? 'border-emerald-500 text-emerald-700 dark:text-emerald-400'
-                    : 'border-muted text-muted-foreground'
-                }`}
+              {/* Mobile: dot indicator, Desktop: text */}
+              <div
+                className="flex items-center gap-1.5"
                 aria-live="polite"
-                title={lastSavedAt ? `Last saved ${new Date(lastSavedAt).toLocaleTimeString()}` : undefined}
+                title={`${savingStatus === 'saving' ? 'Saving…' : savingStatus === 'saved' ? 'Saved' : 'Idle'}${lastSavedAt ? ` - Last saved ${new Date(lastSavedAt).toLocaleTimeString()}` : ''}`}
               >
-                {savingStatus === 'saving' ? 'Saving…' : savingStatus === 'saved' ? 'Saved' : 'Idle'}
-              </span>
-              {storageFallback && (
-                <span className="text-[10px] md:text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200" title="OPFS not available; using IndexedDB fallback">
-                  IndexedDB fallback
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    savingStatus === 'saving'
+                      ? 'bg-amber-500 animate-pulse'
+                      : savingStatus === 'saved'
+                      ? 'bg-emerald-500'
+                      : 'bg-gray-400'
+                  }`}
+                />
+                <span
+                  className={`hidden sm:inline text-xs ${
+                    savingStatus === 'saving'
+                      ? 'text-amber-700 dark:text-amber-400'
+                      : savingStatus === 'saved'
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {savingStatus === 'saving' ? 'Saving…' : savingStatus === 'saved' ? 'Saved' : 'Idle'}
                 </span>
-              )}
+              </div>
             </div>
           )}
         </div>
@@ -558,7 +561,7 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
           </Button>
         </div>
         <div>
-          <Button variant="secondary" disabled={!doc} onClick={() => { setExportView('select'); setExportOpen(true); }}>Export</Button>
+          <Button variant="secondary" disabled={!doc} onClick={() => { setExportView('select'); setExportOpen(true); }} className="px-3 sm:px-4">Export</Button>
           <Dialog open={exportOpen} onOpenChange={(v)=>{ setExportOpen(v); if (!v) setExportView('select'); }}>
             <DialogContent>
               <DialogHeader className={exportView === 'success' ? 'flex items-center justify-start' : undefined}>

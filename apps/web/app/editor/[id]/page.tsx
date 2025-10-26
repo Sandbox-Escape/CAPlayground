@@ -81,7 +81,7 @@ export default function EditorPage() {
 
   return (
     <EditorProvider projectId={projectId} initialMeta={meta}>
-      <div className="flex flex-col h-[calc(100vh)]" ref={containerRef}>
+      <div className="flex flex-col h-[100dvh] md:h-[calc(100vh)]" ref={containerRef}>
         <MenuBar
           projectId={projectId}
           showLeft={showLeft}
@@ -105,13 +105,13 @@ export default function EditorPage() {
         <div className="flex-1 px-4 py-4 overflow-hidden">
           {isMobilePortrait ? (
             // Mobile portrait layout -  toggle between full canvas or full panel screen
-            <div className="h-full w-full flex flex-col gap-3" ref={mobileContainerRef}>
+            <div className="h-full w-full flex flex-col" ref={mobileContainerRef}>
               {mobileView === 'canvas' ? (
-                <div className="min-h-0 flex-1">
+                <div className="min-h-0 flex-1 pb-16">
                   <CanvasPreview />
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-hidden">
+                <div className="min-h-0 flex-1 overflow-hidden pb-16">
                   <div className="flex items-center justify-center gap-2 mb-2">
                     <button
                       className={`px-3 py-1 rounded text-sm border ${mobilePanelScreen === 'layers_states' ? 'bg-accent text-accent-foreground' : 'bg-background'}`}
@@ -138,9 +138,9 @@ export default function EditorPage() {
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-center">
+              <div className="fixed bottom-0 left-0 right-0 flex items-center justify-center py-3 bg-background/95 backdrop-blur-sm border-t shadow-lg z-50" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
                 <button
-                  className="inline-flex items-center gap-2 px-3 py-1 rounded border"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border bg-background shadow-sm hover:bg-accent transition-colors touch-manipulation"
                   onClick={() => setMobileView((v) => (v === 'canvas' ? 'panels' : 'canvas'))}
                 >
                   {mobileView === 'canvas' ? (<><ChevronUp className="h-4 w-4" /> Show Panels</>) : (<><ChevronDown className="h-4 w-4" /> Show Canvas</>)}
