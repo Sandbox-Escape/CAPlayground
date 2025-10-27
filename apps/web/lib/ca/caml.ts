@@ -504,7 +504,7 @@ function parseCAEmitterLayer(el: Element): AnyLayer {
           }
         }
         const newCell = new CAEmitterCell();
-        newCell.id = String(attr(c, 'id'));
+        newCell.id = String(attr(c, 'id') || crypto.randomUUID());
         newCell.src = imageSrc;
         newCell.birthRate = Number(attr(c, 'birthRate'));
         newCell.lifetime = Number(attr(c, 'lifetime'));

@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { getDevicesByCategory } from "@/lib/devices";
 type DeviceSpec = { name: string; width: number; height: number; category?: string };
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import type { AnyLayer, CAProject, CAAsset } from "@/lib/ca/types";
+import type { AnyLayer, CAProject, CAAsset, ImageLayer } from "@/lib/ca/types";
 type DualCABundle = {
   project: { width: number; height: number; geometryFlipped: 0|1 };
   floating: { root: AnyLayer; assets?: Record<string, CAAsset>; states?: string[]; stateOverrides?: any; stateTransitions?: any };
@@ -673,15 +673,18 @@ function ProjectsContent() {
             } catch {}
           }
           const applyAssetSrc = (arr: AnyLayer[]): AnyLayer[] => arr.map((l) => {
+            let newL: AnyLayer | undefined = { ...l };
             if (l.children?.length) {
-              return { ...l, children: applyAssetSrc(l.children || []) } as AnyLayer;
+              newL.children = applyAssetSrc(l.children || []);
             }
             if (l.type === 'image') {
               const name = (l.src || '').split('/').pop() || '';
               const dataURL = filenameToDataURL[name];
-              if (dataURL) return { ...l, src: dataURL } as AnyLayer;
+              if (dataURL) {
+                (newL as ImageLayer).src = dataURL;
+              }
             }
-            return l;
+            return newL;
           });
           if (layers && layers.length) layers = applyAssetSrc(layers);
 

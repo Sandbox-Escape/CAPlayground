@@ -225,6 +225,9 @@ export function EditorProvider({
             const fileNorm = normalize(filename);
             const walk = (arr: AnyLayer[]) => {
               for (const layer of arr) {
+                if (layer.children?.length) {
+                  walk(layer.children);
+                }
                 if (layer.type === "image") {
                   const src = layer.src || "";
                   const name = src.split("/").pop() || "";
@@ -245,8 +248,6 @@ export function EditorProvider({
                     const frameIndex = Number(indexPart);
                     if (!Number.isNaN(frameIndex)) matches.push(`${layer.id}_frame_${frameIndex}`);
                   }
-                } else if (layer.children?.length) {
-                  walk(layer.children);
                 } else if (layer.type === "emitter") {
                   const emitter = layer as EmitterLayer;
                   emitter.emitterCells?.forEach((cell) => {
@@ -288,19 +289,19 @@ export function EditorProvider({
 
           // Replace image src with dataURL from assets so runtime <img> loads correctly
           const applyAssetSrc = (arr: AnyLayer[]): AnyLayer[] => arr.map((l) => {
+            let newL: AnyLayer | undefined = { ...l };
+            if (l.children?.length) {
+              newL.children = applyAssetSrc(l.children);
+            }
             if (l.type === 'image') {
               const a = assets[l.id];
               if (a && a.dataURL) {
-                return { ...l, src: a.dataURL } as AnyLayer;
+                (newL as ImageLayer).src = a.dataURL;
               }
-              return l;
             }
-            if (l.children?.length) {
-              return { ...l, children: applyAssetSrc(l.children) } as AnyLayer;
-            }
-            return l;
+            return newL as AnyLayer;
           });
-
+          
           layers = applyAssetSrc(layers);
           return {
             layers,
