@@ -87,6 +87,7 @@ export function LayersPanel() {
   };
 
   const renderItem = (l: AnyLayer, depth: number) => {
+    const isProtected = l.name === 'FLOATING' || l.name === 'BACKGROUND';
     const hasChildren = (l.children?.length ?? 0) > 0;
     const isCollapsed = collapsed.has(l.id);
     const isChecked = multiSelectedIds.includes(l.id);
@@ -165,7 +166,7 @@ export function LayersPanel() {
           }}
         >
           <div className="truncate flex-1 min-w-0 flex items-center gap-1">
-            {isSelectMode ? (
+            {isSelectMode && !isProtected ? (
               <button
                 className={`shrink-0 h-4 w-4 rounded-full border ${isChecked ? 'bg-accent border-accent' : 'border-muted-foreground/50'} mr-1`}
                 onClick={(e) => { e.stopPropagation(); toggleMultiSelect(l.id); }}
@@ -210,28 +211,30 @@ export function LayersPanel() {
               </>
             )}
           </div>
-          <div className="flex items-center gap-1 pr-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground"
-                  onClick={(e) => { e.stopPropagation(); }}
-                  aria-label="More actions"
-                  title="More actions"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem onClick={() => startRename(l)}>Rename</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => duplicateLayer(l.id)}>Duplicate</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => deleteLayer(l.id)} className="text-destructive focus:text-destructive">Delete</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { setIsSelectMode(true); setMultiSelectedIds((prev) => prev.includes(l.id) ? prev : [...prev, l.id]); }}>Select</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          {!isProtected && (
+            <div className="flex items-center gap-1 pr-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground"
+                    onClick={(e) => { e.stopPropagation(); }}
+                    aria-label="More actions"
+                    title="More actions"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onClick={() => startRename(l)}>Rename</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => duplicateLayer(l.id)}>Duplicate</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => deleteLayer(l.id)} className="text-destructive focus:text-destructive">Delete</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setIsSelectMode(true); setMultiSelectedIds((prev) => prev.includes(l.id) ? prev : [...prev, l.id]); }}>Select</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
         {showDropLineAfter && (
           <div

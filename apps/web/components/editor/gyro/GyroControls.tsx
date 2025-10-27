@@ -1,5 +1,7 @@
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Crosshair } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type XY = { x: number; y: number };
@@ -36,6 +38,8 @@ export default function GyroControls({
     [value, onChange]
   );
 
+  const onRecenter = () => setXY({ x: 0, y: 0 });
+
   useEffect(() => {
     setXY({ x: 0, y: 0 });
   }, [])
@@ -55,15 +59,19 @@ export default function GyroControls({
         <Switch checked={showDevice} onCheckedChange={setShowDevice} />
         <Label className="flex-1 justify-center text-[12px]">Phone</Label>
       </div>
-      <div className="w-32 h-50">
+      <div className="w-32 h-56">
         {showDevice
           ? <PhoneTilt rotateX={rotateX} rotateY={rotateY} onDrag={setXY} />
           : <Pad value={xy} onChange={setXY} />}
+        <div className="text-neutral-400 flex items-center justify-center">
+          <Button title="Re-center gyro" className="text-[10px]" variant="ghost" onClick={onRecenter}>
+            <Crosshair className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
-
 
 function Pad({
   value,

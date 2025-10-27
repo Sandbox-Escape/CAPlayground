@@ -1037,6 +1037,13 @@ export function CanvasPreview() {
     const a = getAnchor(l);
     const transformOriginY = useYUp ? (1 - a.y) * 100 : a.y * 100;
     const isWrappedContent = (l as any).__wrappedContent === true || disableHitTesting === true;
+    
+    const renderChildren = (layer: AnyLayer, nextUseYUp: boolean) => {
+      return layer.children?.map((c) => {
+        return renderLayer(c, layer.size.h, nextUseYUp, layer.children, assets);
+      });
+    };
+    
     const borderStyle: React.CSSProperties = (typeof (l as any).borderWidth === 'number' && (l as any).borderWidth > 0)
       ? { border: `${(l as any).borderWidth}px solid ${(l as any).borderColor || '#000000'}` }
       : {};
@@ -1076,9 +1083,7 @@ export function CanvasPreview() {
             })}
           >
             {l.text}
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -1114,9 +1119,7 @@ export function CanvasPreview() {
                 }
               })}
             />
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -1209,9 +1212,7 @@ export function CanvasPreview() {
               }
             })}
           >
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -1236,9 +1237,7 @@ export function CanvasPreview() {
               }
             })}
           >
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -1400,9 +1399,7 @@ export function CanvasPreview() {
               }
             })}
           >
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -2243,18 +2240,20 @@ export function CanvasPreview() {
       )}
       {/* Preview toggles (bottom-right) */}
       <div className="absolute flex flex-col bottom-2 right-2 z-10 gap-2 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 shadow-sm">
-        <Button
-          type="button"
-          size="icon"
-          variant={useGyroControls ? "default" : "outline"}
-          aria-pressed={useGyroControls}
-          aria-label="Toggle gyro"
-          title="Gyro"
-          onClick={() => setUseGyroControls((v: boolean) => !v)}
-          className={`h-8 w-8 ${useGyroControls ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-        >
-          <Rotate3D className="h-4 w-4" />
-        </Button>
+        {currentKey === 'wallpaper' && (
+          <Button
+            type="button"
+            size="icon"
+            variant={useGyroControls ? "default" : "outline"}
+            aria-pressed={useGyroControls}
+            aria-label="Toggle gyro"
+            title="Gyro"
+            onClick={() => setUseGyroControls((v: boolean) => !v)}
+            className={`h-8 w-8 ${useGyroControls ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+          >
+            <Rotate3D className="h-4 w-4" />
+          </Button>
+        )}
         {(() => {
           const w = doc?.meta.width ?? 0;
           const h = doc?.meta.height ?? 0;

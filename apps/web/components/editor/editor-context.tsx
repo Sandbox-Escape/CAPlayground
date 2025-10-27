@@ -641,13 +641,15 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
       const key = prev.activeCA;
       const cur = prev.docs[key];
       const parentLayer = findById(cur.layers, cur.selectedId)
       const layer: TextLayer = {
         ...addBase("Text Layer"),
         type: "text",
-        position: { x: (parentLayer?.size.w || 0) / 2, y: (parentLayer?.size.h || 0) / 2 },
+        position: { x: (parentLayer?.size.w || canvasW) / 2, y: (parentLayer?.size.h || canvasH) / 2 },
         text: "Text Layer",
         color: "#111827",
         fontSize: 16,
@@ -658,7 +660,8 @@ export function EditorProvider({
 
       const selId = cur.selectedId || null;
       const nextLayers = insertIntoSelected(cur.layers, selId, layer);
-
+      console.log('nextLayers', nextLayers);
+      
       const next = { ...cur, layers: nextLayers, selectedId: layer.id };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
@@ -703,8 +706,8 @@ export function EditorProvider({
       }
       
       const parentLayer = findById(cur.layers, cur.selectedId)
-      const x = (parentLayer?.size.w || 0) / 2;
-      const y = (parentLayer?.size.h || 0) / 2;
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
       
       const layer: ImageLayer = {
         ...addBase(filename || "Pasted Image"),
@@ -841,11 +844,13 @@ export function EditorProvider({
     setDoc((prev) => {
       if (!prev) return prev;
       pushHistory(prev);
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
       const key = prev.activeCA;
       const cur = prev.docs[key];
       const parentLayer = findById(cur.layers, cur.selectedId)
-      const x = (parentLayer?.size.w || 0) / 2;
-      const y = (parentLayer?.size.h || 0) / 2;
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
       
       const layer: ImageLayer = {
         ...addBase("Image Layer"),
@@ -899,8 +904,8 @@ export function EditorProvider({
         h = imgH * scale;
       }
       const parentLayer = findById(cur.layers, cur.selectedId)
-      const x = (parentLayer?.size.w || 0) / 2;
-      const y = (parentLayer?.size.h || 0) / 2;
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
 
       const layer: ImageLayer = {
         ...addBase(file.name || "Image Layer"),
@@ -923,6 +928,8 @@ export function EditorProvider({
   const addGradientLayer = useCallback(() => {
     setDoc((prev) => {
       if (!prev) return prev;
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
       const key = prev.activeCA;
       const cur = prev.docs[key];
       const selId = cur.selectedId || null;
@@ -934,8 +941,8 @@ export function EditorProvider({
       lastAddRef.current = { key: sig, ts: now };
       pushHistory(prev);
       const parentLayer = findById(cur.layers, cur.selectedId)
-      const x = (parentLayer?.size.w || 0) / 2;
-      const y = (parentLayer?.size.h || 0) / 2;
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
       const layer: any = {
         ...addBase("Gradient Layer"),
         type: "gradient",
@@ -964,6 +971,8 @@ export function EditorProvider({
   const addShapeLayer = useCallback((shape: ShapeLayer["shape"] = "rect") => {
     setDoc((prev) => {
       if (!prev) return prev;
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
       const key = prev.activeCA;
       const cur = prev.docs[key];
       const selId = cur.selectedId || null;
@@ -975,8 +984,8 @@ export function EditorProvider({
       lastAddRef.current = { key: sig, ts: now };
       pushHistory(prev);
       const parentLayer = findById(cur.layers, cur.selectedId)
-      const x = (parentLayer?.size.w || 0) / 2;
-      const y = (parentLayer?.size.h || 0) / 2;
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
       const layer: ShapeLayer = {
         ...addBase("Shape Layer"),
         type: "shape",
@@ -1066,8 +1075,8 @@ export function EditorProvider({
           h = height * scale;
         }
         const parentLayer = findById(cur.layers, cur.selectedId)
-        const x = (parentLayer?.size.w || 0) / 2;
-        const y = (parentLayer?.size.h || 0) / 2;
+        const x = (parentLayer?.size.w || canvasW) / 2;
+        const y = (parentLayer?.size.h || canvasH) / 2;
         const layer: VideoLayer = {
           ...addBase(file.name || 'Video Layer'),
           id: layerId,
@@ -1235,10 +1244,13 @@ export function EditorProvider({
       const selId = cur.selectedId || null;
       const canvasW = prev.meta.width || 390;
       const canvasH = prev.meta.height || 844;
+      const parentLayer = findById(cur.layers, cur.selectedId)
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
       const layer: TransformLayer = {
         ...addBase('Transform Layer'),
-        position: { x: canvasW / 2, y: canvasH / 2 },
-        size: { w: canvasW, h: canvasH },
+        position: { x, y },
+        size: { w: 200, h: 200 },
         type: 'transform',
       };
       const nextLayers = insertIntoSelected(cur.layers, selId, layer);
