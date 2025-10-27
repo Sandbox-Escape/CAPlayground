@@ -1261,14 +1261,14 @@ function ProjectsContent() {
       const name = await ensureUniqueProjectName("Imported Tendies");
       const width = Math.round(tendies.project.width);
       const height = Math.round(tendies.project.height);
-      await createProject({ id, name, createdAt: new Date().toISOString(), width, height });
+      await createProject({ id, name, createdAt: new Date().toISOString(), width, height, gyroEnabled: !!tendies.wallpaper });
       const folder = `${name}.ca`;
       const indexXml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n  <key>rootDocument</key>\n  <string>main.caml</string>\n</dict>\n</plist>`;
       const assetManifest = `<?xml version="1.0" encoding="UTF-8"?>\n\n<caml xmlns="http://www.apple.com/CoreAnimation/1.0">\n  <MicaAssetManifest>\n    <modules type="NSArray"/>\n  </MicaAssetManifest>\n</caml>`;
       
       const { serializeCAML } = await import('@/lib/ca/caml');
       
-      const mkCaml = async (doc: { root: AnyLayer; assets?: Record<string, CAAsset>; states?: string[]; stateOverrides?: any; stateTransitions?: any }, docName: string) => {
+      const mkCaml = async (doc: { root: AnyLayer; assets?: Record<string, CAAsset>; states?: string[]; stateOverrides?: any; stateTransitions?: any; wallpaperParallaxGroups?: any }, docName: string) => {
         const root = doc.root as any;
         const layers = Array.isArray(root.children) ? root.children : (root ? [root] : []);
         const group = {
@@ -1281,48 +1281,70 @@ function ProjectsContent() {
           geometryFlipped: tendies.project.geometryFlipped,
           children: layers,
         } as any;
-        return serializeCAML(group, { id, name, width, height, background: root?.backgroundColor ?? '#e5e7eb', geometryFlipped: tendies.project.geometryFlipped } as any, doc.states as any, doc.stateOverrides as any, doc.stateTransitions as any);
+        return serializeCAML(
+          group,
+          { id, name, width, height, background: root?.backgroundColor ?? '#e5e7eb', geometryFlipped: tendies.project.geometryFlipped } as any,
+          doc.states as any,
+          doc.stateOverrides as any,
+          doc.stateTransitions as any,
+          doc.wallpaperParallaxGroups as any
+        );
       };
+      
+      if (tendies.wallpaper) {
+        const camlWallpaper = await mkCaml(tendies.wallpaper, 'Wallpaper');
+        await putTextFile(id, `${folder}/Wallpaper.ca/main.caml`, camlWallpaper);
+        await putTextFile(id, `${folder}/Wallpaper.ca/index.xml`, indexXml);
+        await putTextFile(id, `${folder}/Wallpaper.ca/assetManifest.caml`, assetManifest);
 
-      const floatingDoc = tendies.wallpaper || tendies.floating;
-      if (floatingDoc) {
-        const camlFloating = await mkCaml(floatingDoc, 'Floating');
-        await putTextFile(id, `${folder}/Floating.ca/main.caml`, camlFloating);
-        await putTextFile(id, `${folder}/Floating.ca/index.xml`, indexXml);
-        await putTextFile(id, `${folder}/Floating.ca/assetManifest.caml`, assetManifest);
-
-        const flAssets = (floatingDoc.assets || {}) as Record<string, CAAsset>;
+        const flAssets = (tendies.wallpaper.assets || {}) as Record<string, CAAsset>;
         for (const [filename, asset] of Object.entries(flAssets)) {
           try {
             const data = asset.data instanceof Blob ? asset.data : new Blob([asset.data as ArrayBuffer]);
-            await putBlobFile(id, `${folder}/Floating.ca/assets/${filename}`, data);
+            await putBlobFile(id, `${folder}/Wallpaper.ca/assets/${filename}`, data);
           } catch {}
         }
       } else {
-        const emptyFloatingCaml = `<?xml version="1.0" encoding="UTF-8"?><caml xmlns="http://www.apple.com/CoreAnimation/1.0"/>`;
-        await putTextFile(id, `${folder}/Floating.ca/main.caml`, emptyFloatingCaml);
-        await putTextFile(id, `${folder}/Floating.ca/index.xml`, indexXml);
-        await putTextFile(id, `${folder}/Floating.ca/assetManifest.caml`, assetManifest);
-      }
-      
-      if (tendies.background) {
-        const camlBackground = await mkCaml(tendies.background, 'Background');
-        await putTextFile(id, `${folder}/Background.ca/main.caml`, camlBackground);
-        await putTextFile(id, `${folder}/Background.ca/index.xml`, indexXml);
-        await putTextFile(id, `${folder}/Background.ca/assetManifest.caml`, assetManifest);
+        const floatingDoc = tendies.floating;
+        if (floatingDoc) {
+          const camlFloating = await mkCaml(floatingDoc, 'Floating');
+          await putTextFile(id, `${folder}/Floating.ca/main.caml`, camlFloating);
+          await putTextFile(id, `${folder}/Floating.ca/index.xml`, indexXml);
+          await putTextFile(id, `${folder}/Floating.ca/assetManifest.caml`, assetManifest);
+  
+          const flAssets = (floatingDoc.assets || {}) as Record<string, CAAsset>;
+          for (const [filename, asset] of Object.entries(flAssets)) {
+            try {
+              const data = asset.data instanceof Blob ? asset.data : new Blob([asset.data as ArrayBuffer]);
+              await putBlobFile(id, `${folder}/Floating.ca/assets/${filename}`, data);
+            } catch {}
+          }
+        } else {
+          const emptyFloatingCaml = `<?xml version="1.0" encoding="UTF-8"?><caml xmlns="http://www.apple.com/CoreAnimation/1.0"/>`;
+          await putTextFile(id, `${folder}/Floating.ca/main.caml`, emptyFloatingCaml);
+          await putTextFile(id, `${folder}/Floating.ca/index.xml`, indexXml);
+          await putTextFile(id, `${folder}/Floating.ca/assetManifest.caml`, assetManifest);
+        }
         
-        const bgAssets = (tendies.background.assets || {}) as Record<string, CAAsset>;
-        for (const [filename, asset] of Object.entries(bgAssets)) {
-          try {
-            const data = asset.data instanceof Blob ? asset.data : new Blob([asset.data as ArrayBuffer]);
-            await putBlobFile(id, `${folder}/Background.ca/assets/${filename}`, data);
-          } catch {}
+        if (tendies.background) {
+          const camlBackground = await mkCaml(tendies.background, 'Background');
+          await putTextFile(id, `${folder}/Background.ca/main.caml`, camlBackground);
+          await putTextFile(id, `${folder}/Background.ca/index.xml`, indexXml);
+          await putTextFile(id, `${folder}/Background.ca/assetManifest.caml`, assetManifest);
+          
+          const bgAssets = (tendies.background.assets || {}) as Record<string, CAAsset>;
+          for (const [filename, asset] of Object.entries(bgAssets)) {
+            try {
+              const data = asset.data instanceof Blob ? asset.data : new Blob([asset.data as ArrayBuffer]);
+              await putBlobFile(id, `${folder}/Background.ca/assets/${filename}`, data);
+            } catch {}
+          }
+        } else {
+          const emptyBackgroundCaml = `<?xml version="1.0" encoding="UTF-8"?><caml xmlns="http://www.apple.com/CoreAnimation/1.0"/>`;
+          await putTextFile(id, `${folder}/Background.ca/main.caml`, emptyBackgroundCaml);
+          await putTextFile(id, `${folder}/Background.ca/index.xml`, indexXml);
+          await putTextFile(id, `${folder}/Background.ca/assetManifest.caml`, assetManifest);
         }
-      } else {
-        const emptyBackgroundCaml = `<?xml version="1.0" encoding="UTF-8"?><caml xmlns="http://www.apple.com/CoreAnimation/1.0"/>`;
-        await putTextFile(id, `${folder}/Background.ca/main.caml`, emptyBackgroundCaml);
-        await putTextFile(id, `${folder}/Background.ca/index.xml`, indexXml);
-        await putTextFile(id, `${folder}/Background.ca/assetManifest.caml`, assetManifest);
       }
       
       const idbList = await listProjects();
