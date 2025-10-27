@@ -1275,6 +1275,31 @@ export function CanvasPreview() {
         </LayerContextMenu>
       );
     }
+    if (l.type === "basic") {
+      const style: React.CSSProperties = {
+        ...common,
+        ...bgStyleFor(l),
+        ...((l as any).masksToBounds ? { overflow: 'hidden' } : {}),
+      };
+      return (
+        <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
+          <div
+            style={style}
+            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+            onTouchStart={isWrappedContent ? undefined : ((e) => {
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
+              }
+            })}
+          >
+            {l.children?.map((c) => {
+              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
+            })}
+          </div>
+        </LayerContextMenu>
+      );
+    }
     if (l.type === "transform") {
       function mapRange(value: number, b1: number, b2: number) {
         const a1 = -1;
