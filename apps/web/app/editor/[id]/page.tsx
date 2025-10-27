@@ -14,6 +14,7 @@ import { StatesPanel } from "@/components/editor/states-panel";
 import { Inspector } from "@/components/editor/inspector";
 import { CanvasPreview } from "@/components/editor/canvas-preview";
 import EditorOnboarding from "@/components/editor/onboarding";
+import { BrowserWarning } from "@/components/editor/browser-warning";
 import { getProject } from "@/lib/storage";
 
 export default function EditorPage() {
@@ -123,6 +124,7 @@ export default function EditorPage() {
 
   return (
     <EditorProvider projectId={projectId} initialMeta={meta}>
+      <BrowserWarning />
       <div className="flex flex-col h-[100dvh] md:h-[calc(100vh)]" ref={containerRef}>
         <MenuBar
           projectId={projectId}
