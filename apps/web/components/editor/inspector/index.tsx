@@ -159,7 +159,7 @@ export function Inspector() {
       setActiveTab('geometry');
     } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'gyro'].includes(activeTab))) {
       setActiveTab('emitter');
-    } else if (selected?.type === 'transform' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'emitter'].includes(activeTab))) {
+    } else if (selected?.type === 'transform' && (['animations', 'text', 'gradient', 'image', 'video', 'emitter'].includes(activeTab))) {
       setActiveTab('gyro');
     }
   }, [selected?.type, activeTab]);

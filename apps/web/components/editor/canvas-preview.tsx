@@ -386,8 +386,68 @@ export function CanvasPreview() {
 
   const appliedLayers = useMemo(() => {
     if (!current) return [] as AnyLayer[];
-    return applyOverrides(current.layers, current.stateOverrides, current.activeState);
-  }, [current?.layers, current?.stateOverrides, current?.activeState]);
+    
+    let layers = current.layers;
+    if (useGyroControls) {
+      const frame = JSON.parse(JSON.stringify(layers)) as AnyLayer[];
+      const walk = (arr: AnyLayer[]) => {
+        for (const l of arr) {
+          if (l.type === 'transform') {
+            
+            function mapRange(value: number, b1: number, b2: number) {
+              const a1 = -1;
+              const a2 = 1;
+              return b1 + ((value - a1) * (b2 - b1)) / (a2 - a1);
+            }
+            const parallaxTransform = current?.wallpaperParallaxGroups?.filter(g => g.layerName === l.name)
+            const transformPositionX = parallaxTransform?.filter(g => g.keyPath === 'position.x')[0]
+            const transformPositionY = parallaxTransform?.filter(g => g.keyPath === 'position.y')[0]
+
+            // Calculate rotation and position values based on gyro input and configured min/max values
+            // gyroY (up/down tilt) typically controls rotateX (tilt forward/backward)
+            // gyroX (left/right tilt) typically controls rotateY (turn left/right)
+
+            let positionXDelta = null;
+            let positionYDelta = null;
+
+            if (transformPositionX) {
+              // Determine which gyro axis controls this position
+              let gyroValue = transformPositionX.axis === 'x' ? gyroX : gyroY;
+              if (transformPositionX.mapMinTo > transformPositionX.mapMaxTo) {
+                gyroValue = -gyroValue;
+              }
+              // Use mapMinTo for negative gyro values, mapMaxTo for positive
+              const targetValue = mapRange(gyroValue, transformPositionX.mapMinTo, transformPositionX.mapMaxTo)
+              positionXDelta = targetValue;
+            }
+
+            if (transformPositionY) {
+              // Determine which gyro axis controls this position
+              const gyroValue = transformPositionY.axis === 'x' ? gyroX : gyroY;
+              // Use mapMinTo for negative gyro values, mapMaxTo for positive
+              const targetValue = mapRange(gyroValue, transformPositionY.mapMinTo, transformPositionY.mapMaxTo)
+              positionYDelta = targetValue;
+            }
+            if (useGyroControls) {
+              if (positionXDelta !== null) {
+                l.position.x = positionXDelta;
+              }
+              if (positionYDelta !== null) {
+                l.position.y = positionYDelta;
+              }
+            }
+          }
+          if (l.children?.length) {
+            walk(l.children);
+          }
+        }
+      };
+      walk(frame);
+      layers = frame;
+    }
+    
+    return applyOverrides(layers, current.stateOverrides, current.activeState);
+  }, [current?.layers, current?.stateOverrides, current?.activeState, useGyroControls, gyroX, gyroY]);
 
   const backgroundLayers = useMemo(() => {
     if (!other || currentKey !== 'floating' || !showBackground) return [] as AnyLayer[];
@@ -1292,9 +1352,7 @@ export function CanvasPreview() {
               }
             })}
           >
-            {l.children?.map((c) => {
-              return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, false);
-            })}
+            {renderChildren(l, nextUseYUp)}
           </div>
         </LayerContextMenu>
       );
@@ -1309,25 +1367,17 @@ export function CanvasPreview() {
       const radToDeg = (rad: number) => rad * (180 / Math.PI);
       const transformRotationX = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.x')[0]
       const transformRotationY = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.y')[0]
-      const transformPositionX = parallaxTransform?.filter(g => g.keyPath === 'position.x')[0]
-      const transformPositionY = parallaxTransform?.filter(g => g.keyPath === 'position.y')[0]
-
       // Calculate rotation and position values based on gyro input and configured min/max values
       // gyroY (up/down tilt) typically controls rotateX (tilt forward/backward)
       // gyroX (left/right tilt) typically controls rotateY (turn left/right)
 
       let rotationXDelta = 0;
       let rotationYDelta = 0;
-      let positionXDelta = null;
-      let positionYDelta = null;
 
       if (transformRotationX) {
         // Determine which gyro axis controls this rotation
         let gyroValue = transformRotationX.axis === 'x' ? gyroX : gyroY;
         gyroValue = -gyroValue;
-        // if (transformRotationX.mapMinTo > transformRotationX.mapMaxTo) {
-        //   gyroValue = -gyroValue;
-        // }
         const targetValue = mapRange(gyroValue, transformRotationX.mapMinTo, transformRotationX.mapMaxTo)
         rotationXDelta = radToDeg(targetValue);
       }
@@ -1341,41 +1391,11 @@ export function CanvasPreview() {
         rotationYDelta = radToDeg(targetValue);
       }
 
-      if (transformPositionX) {
-        // Determine which gyro axis controls this position
-        let gyroValue = transformPositionX.axis === 'x' ? gyroX : gyroY;
-        if (transformPositionX.mapMinTo > transformPositionX.mapMaxTo) {
-          gyroValue = -gyroValue;
-        }
-        // Use mapMinTo for negative gyro values, mapMaxTo for positive
-        const targetValue = mapRange(gyroValue, transformPositionX.mapMinTo, transformPositionX.mapMaxTo)
-        positionXDelta = targetValue;
-      }
-
-      if (transformPositionY) {
-        // Determine which gyro axis controls this position
-        const gyroValue = transformPositionY.axis === 'x' ? gyroX : gyroY;
-        // Use mapMinTo for negative gyro values, mapMaxTo for positive
-        const targetValue = mapRange(gyroValue, transformPositionY.mapMinTo, transformPositionY.mapMaxTo)
-        positionYDelta = targetValue;
-      }
       let transformString = '';
-      const e = {
-        ...l,
-        position: {
-          ...l.position,
-        }
-      } as TransformLayer;
+      const e = { ...l } as TransformLayer;
       if (useGyroControls) {
-        if (positionXDelta !== null) {
-          e.position.x = positionXDelta;
-        }
-        if (positionYDelta !== null) {
-          e.position.y = positionYDelta;
-        }
         transformString = `rotate3d(0, 1, 0, ${(e.rotationY ?? 0) + rotationYDelta}deg) rotateX(${(e.rotationX ?? 0) + rotationXDelta}deg)`;
       }
-      const { left, top } = computeCssLT(e, containerH, useYUp);
 
       const style: React.CSSProperties = {
         ...common,
@@ -1383,8 +1403,6 @@ export function CanvasPreview() {
         ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
         transform: transformString,
         transformStyle: 'preserve-3d',
-        left,
-        top,
       };
 
       return (
