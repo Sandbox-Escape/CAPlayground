@@ -78,7 +78,7 @@ export default function TermsPage() {
             CAPlayground does not receive or store your Cloud Projects; access and storage are managed according to Google Drive's policies.
           </li>
           <li>
-            <strong>Cloud Projects (Beta)</strong>: Cloud storage via Google Drive is currently in beta. This means the feature may change, be discontinued, or experience issues. We provide no guarantees of data availability or reliability for Cloud Projects. You are responsible for maintaining backups of important projects. You must comply with Google's Terms of Service when using Cloud Projects.
+            <strong>Cloud Projects</strong>: Cloud storage via Google Drive allows you to sync your projects across devices. We provide no guarantees of data availability or reliability for Cloud Projects. You are responsible for maintaining backups of important projects. You must comply with Google's Terms of Service when using Cloud Projects.
           </li>
           <li>
             <strong>Google Drive Integration</strong>: When you sign in to Google Drive, you authorize CAPlayground to access files created by CAPlayground in your Drive. We use browser cookies to maintain your Drive session. You can revoke this access at any time through your Google account settings or by signing out from Google Drive in the dashboard.
