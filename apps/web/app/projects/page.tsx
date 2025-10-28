@@ -1693,7 +1693,7 @@ function ProjectsContent() {
                   onCheckedChange={(checked) => setGyroEnabled(!!checked)}
                 />
                 <Label htmlFor="gyro-enabled" className="text-sm font-medium cursor-pointer">
-                  Enable Gyro (Parallax Effect)
+                  [BETA] Enable Gyro (Parallax Effect)
                 </Label>
               </div>
               

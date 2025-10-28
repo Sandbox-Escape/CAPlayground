@@ -1,6 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Crosshair } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -22,7 +20,9 @@ export default function GyroControls({
   onChange,
 }: GyroControlsProps) {
   const [internal, setInternal] = useState<XY>(defaultValue);
-  const [showDevice, setShowDevice] = useState(true);
+  const [controlMode, setControlMode] = useState<'grid' | 'phone' | 'device'>('phone');
+  const [deviceSupported, setDeviceSupported] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(false);
 
   const xy = value ?? internal;
 
@@ -44,6 +44,50 @@ export default function GyroControls({
     setXY({ x: 0, y: 0 });
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+    
+    if (isMobile && 'DeviceOrientationEvent' in window) {
+      setDeviceSupported(true);
+    }
+  }, []);
+
+  const requestPermission = async () => {
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      try {
+        const permission = await (DeviceOrientationEvent as any).requestPermission();
+        if (permission === 'granted') {
+          setPermissionGranted(true);
+          setControlMode('device');
+        }
+      } catch (error) {
+        console.error('Permission denied for device orientation');
+      }
+    } else {
+      setPermissionGranted(true);
+      setControlMode('device');
+    }
+  };
+
+  useEffect(() => {
+    if (controlMode !== 'device' || !deviceSupported) return;
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      const beta = event.beta ?? 0;
+      const gamma = event.gamma ?? 0; 
+      const normalizedY = clamp(beta / 90, -1, 1);
+      const normalizedX = clamp(gamma / 45, -1, 1);
+
+      setXY({ x: normalizedX, y: normalizedY });
+    };
+
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, [controlMode, deviceSupported, setXY]);
+
   const sensitivity = 50;
   const rotateX = useMemo(() => clamp((-xy.y) * sensitivity, -sensitivity, sensitivity), [xy.y]);
   const rotateY = useMemo(() => clamp((xy.x) * sensitivity, -sensitivity, sensitivity), [xy.x]);
@@ -51,24 +95,63 @@ export default function GyroControls({
   return (
     <div
       className={
-        "absolute flex flex-col bottom-2 left-2 z-10 gap-3 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-2 shadow-sm"
+        "absolute flex flex-col bottom-2 left-2 z-10 gap-3 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-3 shadow-sm"
       }
     >
-      <div className="flex text-neutral-400 justify-between">
-        <Label className="flex-1 justify-center text-[12px]">Grid</Label>
-        <Switch checked={showDevice} onCheckedChange={setShowDevice} />
-        <Label className="flex-1 justify-center text-[12px]">Phone</Label>
+      <div className="flex gap-1">
+        <Button
+          size="sm"
+          variant={controlMode === 'grid' ? 'default' : 'outline'}
+          onClick={() => setControlMode('grid')}
+          className="flex-1 h-7 text-[11px]"
+        >
+          Grid
+        </Button>
+        <Button
+          size="sm"
+          variant={controlMode === 'phone' ? 'default' : 'outline'}
+          onClick={() => setControlMode('phone')}
+          className="flex-1 h-7 text-[11px]"
+        >
+          Phone
+        </Button>
+        {deviceSupported && (
+          <Button
+            size="sm"
+            variant={controlMode === 'device' ? 'default' : 'outline'}
+            onClick={() => {
+              if (!permissionGranted) {
+                requestPermission();
+              } else {
+                setControlMode('device');
+              }
+            }}
+            className="flex-1 h-7 text-[11px]"
+          >
+            Device
+          </Button>
+        )}
       </div>
-      <div className="w-32 h-56">
-        {showDevice
-          ? <PhoneTilt rotateX={rotateX} rotateY={rotateY} onDrag={setXY} />
-          : <Pad value={xy} onChange={setXY} />}
+
+      <div className="flex flex-col items-center justify-center" style={{ minHeight: 224 }}>
+        {controlMode === 'grid' && (
+          <Pad value={xy} onChange={setXY} />
+        )}
+        {controlMode === 'phone' && (
+          <PhoneTilt rotateX={rotateX} rotateY={rotateY} onDrag={setXY} />
+        )}
+        {controlMode === 'device' && (
+          <DeviceGyro xy={xy} />
+        )}
+      </div>
+
+      {controlMode !== 'device' && (
         <div className="text-neutral-400 flex items-center justify-center">
           <Button title="Re-center gyro" className="text-[10px]" variant="ghost" onClick={onRecenter}>
             <Crosshair className="h-4 w-4" />
           </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -152,6 +235,38 @@ function Pad({
         <span>center</span>
         <span>R</span>
       </div>
+    </div>
+  );
+}
+
+function DeviceGyro({ xy }: { xy: XY }) {
+  const sensitivity = 50;
+  const rotateX = clamp((-xy.y) * sensitivity, -sensitivity, sensitivity);
+  const rotateY = clamp((xy.x) * sensitivity, -sensitivity, sensitivity);
+
+  return (
+    <div className="w-full flex flex-col items-center justify-center">
+      <div className="relative mx-auto" style={{ width: 85, height: 150 }}>
+        <div className="absolute inset-0 rounded-[1rem]" style={{
+          boxShadow: "0 20px 45px rgba(0,0,0,0.35), 0 4px 10px rgba(0,0,0,0.2)",
+          filter: "saturate(0.98)",
+          transform: `perspective(200px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+          transformStyle: "preserve-3d",
+          transition: "transform 80ms linear",
+        }}>
+          <div className="absolute inset-0 rounded-[1rem] bg-neutral-900" style={{ transform: "translateZ(0px)" }} />
+
+          <div className="absolute inset-0 rounded-[1rem]" style={{ padding: 5 }}>
+            <div className="w-full h-full rounded-[0.7rem] bg-black overflow-hidden relative" style={{ transform: "translateZ(6px)" }}>
+              <div className="absolute top-1 left-1/2 -translate-x-1/2 w-8 h-2 rounded-full bg-black z-20" />
+              <div className="absolute inset-0" style={{ background: "radial-gradient(120% 80% at 50% 100%, #38bdf8 0%, #0b1221 60%, #808080 100%)" }} />
+
+              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/60" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="mt-2 text-[11px] text-neutral-500 text-center">Tilt your device</p>
     </div>
   );
 }

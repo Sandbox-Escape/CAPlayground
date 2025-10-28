@@ -25,6 +25,7 @@ export default function EditorPage() {
   const [leftWidth, setLeftWidth] = useLocalStorage<number>("caplay_panel_left_width", 320);
   const [rightWidth, setRightWidth] = useLocalStorage<number>("caplay_panel_right_width", 400);
   const [statesHeight, setStatesHeight] = useLocalStorage<number>("caplay_panel_states_height", 350);
+  const [autoClosePanels] = useLocalStorage<boolean>("caplay_settings_auto_close_panels", true);
   const leftPaneRef = useRef<HTMLDivElement | null>(null);
   const [showLeft, setShowLeft] = useState(true);
   const [showRight, setShowRight] = useState(false);
@@ -43,19 +44,26 @@ export default function EditorPage() {
   const [isWideDesktop, setIsWideDesktop] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1250px)');
-    const apply = () => setIsWideDesktop(mq.matches);
+    const apply = () => {
+      const matches = mq.matches;
+      setIsWideDesktop(matches);
+      
+      if (autoClosePanels) {
+        if (matches) {
+          setShowLeft(true);
+          setShowRight(true);
+        } else {
+          setShowRight(false);
+        }
+      } else if (matches) {
+        setShowLeft(true);
+        setShowRight(true);
+      }
+    };
     apply();
     mq.addEventListener?.('change', apply);
     return () => mq.removeEventListener?.('change', apply);
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 1250px)');
-    if (mq.matches) {
-      setShowLeft(true);
-      setShowRight(true);
-    }
-  }, []);
+  }, [autoClosePanels]);
 
   type PanelKey = 'layers_states' | 'inspector';
   const [mobilePanelScreen, setMobilePanelScreen] = useState<PanelKey>('layers_states');

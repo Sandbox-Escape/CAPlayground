@@ -43,6 +43,7 @@ export function SettingsPanel({
   const [snapRotationEnabled, setSnapRotationEnabled] = useLocalStorage<boolean>("caplay_settings_snap_rotation", true);
   const [SNAP_THRESHOLD, setSnapThreshold] = useLocalStorage<number>("caplay_settings_snap_threshold", 12);
   const [showAnchorPoint, setShowAnchorPoint] = useLocalStorage<boolean>("caplay_preview_anchor_point", false);
+  const [autoClosePanels, setAutoClosePanels] = useLocalStorage<boolean>("caplay_settings_auto_close_panels", true);
 
   useEffect(() => setMounted(true), []);
 
@@ -184,6 +185,10 @@ export function SettingsPanel({
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Panels</h3>
             <div className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor="auto-close-panels" className="text-sm">Auto-close right panel on narrow screens</Label>
+                <Switch id="auto-close-panels" checked={!!autoClosePanels} onCheckedChange={(c) => setAutoClosePanels(!!c)} />
+              </div>
               <div className="flex items-center justify-between">
                 <span>Left panel width</span>
                 <span className="font-mono text-muted-foreground text-xs">{leftWidth ?? '—'} px</span>
