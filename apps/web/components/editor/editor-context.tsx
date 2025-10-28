@@ -494,12 +494,12 @@ export function EditorProvider({
         const caDoc = snapshot.docs[key];
         const toCamlLayers = (layers: AnyLayer[], assetsMap: CADoc["assets"] | undefined): AnyLayer[] => {
           const mapOne = (l: AnyLayer): AnyLayer => {
+            const newL = { ...l };
             if (l.type === 'image') {
               const asset = assetsMap ? assetsMap[l.id] : undefined;
               if (asset && asset.filename) {
-                return { ...l, src: `assets/${asset.filename}` } as AnyLayer;
+                (newL as ImageLayer).src = `assets/${asset.filename}`;
               }
-              return l;
             }
             if (l.type === 'emitter') {
               const cells = (l as EmitterLayer).emitterCells;
@@ -510,17 +510,16 @@ export function EditorProvider({
                 }
                 return c;
               });
-              return { ...l, emitterCells: newCells } as EmitterLayer;
+              (newL as EmitterLayer).emitterCells = newCells;
             }
             if (l.children?.length) {
-              return { ...l, children: l.children.map(mapOne) } as AnyLayer;
+              (newL as AnyLayer).children = l.children.map(mapOne);
             }
-            return l;
+            return newL;
           };
           return layers.map(mapOne);
         };
-        const rootLayer = caDoc.layers.find((l) => l.name === 'Root Layer');
-        const rootBase = rootLayer || {
+        const rootBase = {
           id: snapshot.meta.id,
           name: 'Root Layer',
           type: 'basic',
@@ -1376,7 +1375,8 @@ export function EditorProvider({
         if (l.type === 'image') {
           const a = (cur.assets || {})[l.id];
           if (a) images[l.id] = { ...a };
-        } else if (l.children?.length) {
+        }
+        if (l.children?.length) {
           for (const c of l.children) walk(c);
         }
       };
@@ -1437,7 +1437,8 @@ export function EditorProvider({
         if (l.type === 'image') {
           const a = (cur.assets || {})[l.id];
           if (a) images[l.id] = { ...a };
-        } else if (l.children?.length) {
+        }
+        if (l.children?.length) {
           for (const c of l.children) walk(c);
         }
       };
