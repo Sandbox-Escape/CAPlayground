@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Minus, Plus, Crosshair, Square, Crop, Clock, Rotate3D } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
@@ -2259,18 +2260,22 @@ export function CanvasPreview() {
       {/* Preview toggles (bottom-right) */}
       <div className="absolute flex flex-col bottom-2 right-2 z-10 gap-2 bg-white/80 dark:bg-gray-900/70 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 shadow-sm">
         {currentKey === 'wallpaper' && (
-          <Button
-            type="button"
-            size="icon"
-            variant={useGyroControls ? "default" : "outline"}
-            aria-pressed={useGyroControls}
-            aria-label="Toggle gyro"
-            title="Gyro"
-            onClick={() => setUseGyroControls((v: boolean) => !v)}
-            className={`h-8 w-8 ${useGyroControls ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-          >
-            <Rotate3D className="h-4 w-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant={useGyroControls ? "default" : "outline"}
+                aria-pressed={useGyroControls}
+                aria-label="Toggle gyro"
+                onClick={() => setUseGyroControls((v: boolean) => !v)}
+                className={`h-8 w-8 ${useGyroControls ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+              >
+                <Rotate3D className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">Gyro</TooltipContent>
+          </Tooltip>
         )}
         {(() => {
           const w = doc?.meta.width ?? 0;
@@ -2281,21 +2286,23 @@ export function CanvasPreview() {
           
           if (isMatchingAspectRatio) {
             return (
-              <Popover open={clockMenuOpen} onOpenChange={setClockMenuOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant={showClockOverlay ? "default" : "outline"}
-                    aria-pressed={showClockOverlay}
-                    aria-label="Clock overlay settings"
-                    title="Clock"
-                    className={`h-8 w-8 ${showClockOverlay ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-                  >
-                    <Clock className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-56" align="end" side="top" sideOffset={8}>
+              <Tooltip>
+                <Popover open={clockMenuOpen} onOpenChange={setClockMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant={showClockOverlay ? "default" : "outline"}
+                        aria-pressed={showClockOverlay}
+                        aria-label="Clock overlay settings"
+                        className={`h-8 w-8 ${showClockOverlay ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+                      >
+                        <Clock className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56" align="end" side="top" sideOffset={8}>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="clock-overlay" className="text-sm font-medium cursor-pointer">
@@ -2325,93 +2332,117 @@ export function CanvasPreview() {
                     </div>
                   </div>
                 </PopoverContent>
+                <TooltipContent side="left">Clock</TooltipContent>
               </Popover>
+              </Tooltip>
             );
           }
           return null;
         })()}
-        <Button
-          type="button"
-          size="icon"
-          variant={showEdgeGuide ? "default" : "outline"}
-          aria-pressed={showEdgeGuide}
-          aria-label="Toggle edge guide"
-          title="Edge guide"
-          onClick={() => setShowEdgeGuide((v: boolean) => !v)}
-          className={`h-8 w-8 ${showEdgeGuide ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-        >
-          <Square className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant={clipToCanvas ? "default" : "outline"}
-          aria-pressed={clipToCanvas}
-          aria-label="Toggle clip to canvas"
-          title="Clip to canvas"
-          onClick={() => setClipToCanvas((v: boolean) => !v)}
-          className={`h-8 w-8 ${clipToCanvas ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
-        >
-          <Crop className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant={showEdgeGuide ? "default" : "outline"}
+              aria-pressed={showEdgeGuide}
+              aria-label="Toggle edge guide"
+              onClick={() => setShowEdgeGuide((v: boolean) => !v)}
+              className={`h-8 w-8 ${showEdgeGuide ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Edge guide</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant={clipToCanvas ? "default" : "outline"}
+              aria-pressed={clipToCanvas}
+              aria-label="Toggle clip to canvas"
+              onClick={() => setClipToCanvas((v: boolean) => !v)}
+              className={`h-8 w-8 ${clipToCanvas ? '' : 'hover:text-primary hover:border-primary/50 hover:bg-primary/10'}`}
+            >
+              <Crop className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Clip to canvas</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Zoom controls */}
       <div className="absolute top-2 right-2 z-10 flex flex-col gap-2">
-        <Button
-          size="icon"
-          variant="outline"
-          aria-label="Zoom in"
-          onClick={() => {
-            if (!ref.current) return;
-            const rect = ref.current.getBoundingClientRect();
-            const clientX = rect.width / 2;
-            const clientY = rect.height / 2;
-            const worldX = (clientX - (baseOffsetX + pan.x)) / scale;
-            const worldY = (clientY - (baseOffsetY + pan.y)) / scale;
-            const nextUserScale = Math.min(5, userScale * 1.1);
-            const nextScale = fitScale * nextUserScale;
-            const nextPanX = clientX - worldX * nextScale - baseOffsetX;
-            const nextPanY = clientY - worldY * nextScale - baseOffsetY;
-            setUserScale(nextUserScale);
-            setPan({ x: nextPanX, y: nextPanY });
-          }}
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="outline"
-          aria-label="Zoom out"
-          onClick={() => {
-            if (!ref.current) return;
-            const rect = ref.current.getBoundingClientRect();
-            const clientX = rect.width / 2;
-            const clientY = rect.height / 2;
-            const worldX = (clientX - (baseOffsetX + pan.x)) / scale;
-            const worldY = (clientY - (baseOffsetY + pan.y)) / scale;
-            const nextUserScale = Math.max(0.2, userScale / 1.1);
-            const nextScale = fitScale * nextUserScale;
-            const nextPanX = clientX - worldX * nextScale - baseOffsetX;
-            const nextPanY = clientY - worldY * nextScale - baseOffsetY;
-            setUserScale(nextUserScale);
-            setPan({ x: nextPanX, y: nextPanY });
-          }}
-        >
-          <Minus className="h-4 w-4" />
-        </Button>
-        <Button
-          size="icon"
-          variant="outline"
-          aria-label="Re-center"
-          title="Re-center"
-          onClick={() => {
-            setUserScale(1);
-            setPan({ x: 0, y: 0 });
-          }}
-        >
-          <Crosshair className="h-4 w-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Zoom in"
+              onClick={() => {
+                if (!ref.current) return;
+                const rect = ref.current.getBoundingClientRect();
+                const clientX = rect.width / 2;
+                const clientY = rect.height / 2;
+                const worldX = (clientX - (baseOffsetX + pan.x)) / scale;
+                const worldY = (clientY - (baseOffsetY + pan.y)) / scale;
+                const nextUserScale = Math.min(5, userScale * 1.1);
+                const nextScale = fitScale * nextUserScale;
+                const nextPanX = clientX - worldX * nextScale - baseOffsetX;
+                const nextPanY = clientY - worldY * nextScale - baseOffsetY;
+                setUserScale(nextUserScale);
+                setPan({ x: nextPanX, y: nextPanY });
+              }}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Zoom in</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Zoom out"
+              onClick={() => {
+                if (!ref.current) return;
+                const rect = ref.current.getBoundingClientRect();
+                const clientX = rect.width / 2;
+                const clientY = rect.height / 2;
+                const worldX = (clientX - (baseOffsetX + pan.x)) / scale;
+                const worldY = (clientY - (baseOffsetY + pan.y)) / scale;
+                const nextUserScale = Math.max(0.2, userScale / 1.1);
+                const nextScale = fitScale * nextUserScale;
+                const nextPanX = clientX - worldX * nextScale - baseOffsetX;
+                const nextPanY = clientY - worldY * nextScale - baseOffsetY;
+                setUserScale(nextUserScale);
+                setPan({ x: nextPanX, y: nextPanY });
+              }}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Zoom out</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              aria-label="Re-center"
+              onClick={() => {
+                setUserScale(1);
+                setPan({ x: 0, y: 0 });
+              }}
+            >
+              <Crosshair className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Re-center</TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Playback controls - visible only if any animation is enabled */}
