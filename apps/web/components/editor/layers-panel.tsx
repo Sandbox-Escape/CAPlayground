@@ -54,6 +54,23 @@ export function LayersPanel() {
     return () => window.removeEventListener('keydown', onKey);
   }, [isSelectMode]);
 
+  useEffect(() => {
+    if (multiSelectedIds.length === 0) return;
+    
+    const existsInLayers = (id: string, layerList: AnyLayer[]): boolean => {
+      for (const layer of layerList) {
+        if (layer.id === id) return true;
+        if (layer.children && existsInLayers(id, layer.children)) return true;
+      }
+      return false;
+    };
+
+    const validIds = multiSelectedIds.filter(id => existsInLayers(id, layers));
+    if (validIds.length !== multiSelectedIds.length) {
+      setMultiSelectedIds(validIds);
+    }
+  }, [layers, multiSelectedIds]);
+
   const toggleCollapse = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setCollapsed(prev => {
