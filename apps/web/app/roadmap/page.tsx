@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
 
 export default function RoadmapPage() {
-  const [selectedMonth, setSelectedMonth] = useState<1 | 2>(2);
+  const [selectedMonth, setSelectedMonth] = useState<1 | 2 | 3>(3);
 
   useEffect(() => {
     document.title = "CAPlayground - Roadmap";
@@ -21,7 +21,7 @@ export default function RoadmapPage() {
         <section className="container mx-auto px-3 min-[600px]:px-4 lg:px-6 py-16 md:py-24">
         <header className="mb-10 space-y-2">
           <h1 className="font-heading text-4xl md:text-5xl font-bold">Project Roadmap</h1>
-          <p className="text-muted-foreground">What's cooking in CAPlayground? (Last Updated: 24th October, 2025)</p>
+          <p className="text-muted-foreground">What's cooking in CAPlayground? (Last Updated: 28th October, 2025)</p>
           <div className="flex gap-2 pt-4">
             <Button
               variant={selectedMonth === 1 ? "default" : "outline"}
@@ -35,6 +35,12 @@ export default function RoadmapPage() {
             >
               Month 2
             </Button>
+            <Button
+              variant={selectedMonth === 3 ? "default" : "outline"}
+              onClick={() => setSelectedMonth(3)}
+            >
+              Month 3
+            </Button>
           </div>
         </header>
 
@@ -44,7 +50,7 @@ export default function RoadmapPage() {
           <Badge variant="outline" className="align-middle mx-1">Not Started</Badge>
         */}
 
-        {selectedMonth === 1 ? (
+        {selectedMonth === 1 && (
           <div className="space-y-6">
             <RoadmapItem index={1} title="The Start" status={<Badge>Done: 24th August, 2025</Badge>}>
               Starting the project on 24th August, 2025 because Lemin said it's time for a second wallpaper competition. Creating the project.
@@ -65,7 +71,8 @@ export default function RoadmapPage() {
               CAPlayground app to work inside an app.
             </RoadmapItem>
           </div>
-        ) : (
+        )}
+        {selectedMonth === 2 && (
           <div className="space-y-6">
             <RoadmapItem index={1} title="Mobile Editor" status={<Badge>Done: 4th October, 2025</Badge>}>
               Edit wallpapers on mobile, such as your iPhone or iPad.
@@ -82,8 +89,18 @@ export default function RoadmapPage() {
             <RoadmapItem index={5} title="Emitters Support" status={<Badge>Done: 24th October, 2025</Badge>}>
               Create emitters layers and cells to emit particles.
             </RoadmapItem>
-            <RoadmapItem index={6} title="Parallax Effect" status={<Badge variant="outline">Coming Soon</Badge>}>
+            <RoadmapItem index={6} title="Parallax Effect (Beta)" status={<Badge>Done: 28th October, 2025</Badge>}>
               Create wallpapers with Parallax Effect (Gyroscope) for iOS 26. Will need to make sublayers support because of this.
+            </RoadmapItem>
+          </div>
+        )}
+        {selectedMonth === 3 && (
+          <div className="space-y-6">
+            <RoadmapItem index={1} title="Blending Modes" status={<Badge variant="secondary" className="align-middle mx-1">In Progress</Badge>}>
+              Create layers with blending modes.
+            </RoadmapItem>
+            <RoadmapItem index={2} title="Replicator Layers" status={<Badge variant="outline">Coming Soon</Badge>}>
+              Create replicator layers to duplicate and arrange layers in patterns.
             </RoadmapItem>
           </div>
         )}
