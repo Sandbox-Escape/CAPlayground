@@ -18,7 +18,8 @@ export function GyroTab({
   wallpaperParallaxGroups,
   setDoc,
 }: GyroTabProps) {
-  const layerDicts = wallpaperParallaxGroups.filter(d => d.layerName === selected?.name);
+  const transformLayerName = selected?.name;
+  const layerDicts = wallpaperParallaxGroups.filter(d => d.layerName === transformLayerName);
   
   const addDictionary = () => {
     if (layerDicts.length >= 10) {
@@ -28,7 +29,7 @@ export function GyroTab({
       axis: 'x' as 'x' | 'y',
       image: 'null',
       keyPath: 'position.x' as any,
-      layerName: selected?.name || '',
+      layerName: transformLayerName || '',
       mapMaxTo: 50,
       mapMinTo: -50,
       title: 'New Gyro Effect',
@@ -56,7 +57,7 @@ export function GyroTab({
       if (!prev) return prev;
       const key = prev.activeCA;
       const allDicts = prev.docs[key].wallpaperParallaxGroups || [];
-      const globalIndex = allDicts.findIndex((d: any, i: number) => d.layerName === selected?.name && layerDicts.findIndex(ld => ld === d) === index);
+      const globalIndex = allDicts.findIndex((d: any, i: number) => d.layerName === transformLayerName && layerDicts.findIndex(ld => ld === d) === index);
       if (globalIndex === -1) return prev;
       const updated = [...allDicts];
       updated[globalIndex] = { ...updated[globalIndex], ...updates };
@@ -78,7 +79,7 @@ export function GyroTab({
       if (!prev) return prev;
       const key = prev.activeCA;
       const allDicts = prev.docs[key].wallpaperParallaxGroups || [];
-      const globalIndex = allDicts.findIndex((d: any, i: number) => d.layerName === selected?.name && layerDicts.findIndex(ld => ld === d) === index);
+      const globalIndex = allDicts.findIndex((d: any, i: number) => d.layerName === transformLayerName && layerDicts.findIndex(ld => ld === d) === index);
       if (globalIndex === -1) return prev;
       const updated = allDicts.filter((_: any, i: number) => i !== globalIndex);
       return {
@@ -174,7 +175,7 @@ export function GyroTab({
                     <SelectItem value="position.y">position.y</SelectItem>
                     <SelectItem value="transform.rotation.x">transform.rotation.x</SelectItem>
                     <SelectItem value="transform.rotation.y">transform.rotation.y</SelectItem>
-                    <SelectItem value="transform.rotation.z">transform.rotation.z</SelectItem>
+                    {/* TODO: <SelectItem value="transform.rotation.z">transform.rotation.z</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>

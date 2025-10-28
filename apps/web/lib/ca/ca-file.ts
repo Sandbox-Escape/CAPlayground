@@ -1,5 +1,5 @@
 import { CAProjectBundle, AnyLayer } from './types';
-import { parseCAML, parseStates, parseStateOverrides, parseStateTransitions, serializeCAML } from './caml';
+import { parseCAML, parseStates, parseStateOverrides, parseStateTransitions, serializeCAML, parseWallpaperParallaxGroups } from './caml';
 
 const INDEX_XML_BASENAME = 'index.xml';
 const DEFAULT_SCENE = 'main.caml';
@@ -502,6 +502,7 @@ export async function unpackTendies(file: Blob): Promise<TendiesBundle> {
     const states = parseStates(camlStr);
     const stateOverrides = parseStateOverrides(camlStr);
     const stateTransitions = parseStateTransitions(camlStr);
+    const wallpaperParallaxGroups = parseWallpaperParallaxGroups(camlStr);
 
     const assets: CAProjectBundle['assets'] = {};
     for (const p of paths) {
@@ -526,7 +527,7 @@ export async function unpackTendies(file: Blob): Promise<TendiesBundle> {
       }
     } catch {}
 
-    return { root, states, stateOverrides, stateTransitions, assets };
+    return { root, states, stateOverrides, stateTransitions, wallpaperParallaxGroups, assets };
   };
 
   const floating = floatingPath ? await readCADir(floatingPath) : undefined;

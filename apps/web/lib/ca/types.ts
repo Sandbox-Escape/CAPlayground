@@ -16,6 +16,7 @@ export type CAProject = {
 export type LayerBase = {
   id: string;
   name: string;
+  children?: AnyLayer[];
   position: Vec2;
   size: Size;
   opacity?: number;
@@ -35,6 +36,10 @@ export type LayerBase = {
   // Clip contents for sublayers to this layer's bounds (0 = off, 1 = on)
   masksToBounds?: 0 | 1;
   animations?: Animations;
+};
+
+export type BasicLayer = LayerBase & {
+  type: 'basic';
 };
 
 export type ImageLayer = LayerBase & {
@@ -65,11 +70,6 @@ export type ShapeLayer = LayerBase & {
   radius?: number;
 };
 
-export type GroupLayer = LayerBase & {
-  type: 'group';
-  children: AnyLayer[];
-};
-
 export type VideoLayer = LayerBase & {
   type: 'video';
   frameCount: number;
@@ -91,6 +91,10 @@ export type EmitterLayer = LayerBase & {
   renderMode: 'unordered' | 'additive';
 };
 
+export type TransformLayer = LayerBase & {
+  type: 'transform';
+};
+
 export type GradientColor = {
   color: string;
   opacity: number;
@@ -105,13 +109,14 @@ export type GradientLayer = LayerBase & {
 };
 
 export type AnyLayer =
+  BasicLayer |
   ImageLayer |
   TextLayer |
   ShapeLayer |
-  GroupLayer |
   VideoLayer |
   GradientLayer |
-  EmitterLayer;
+  EmitterLayer |
+  TransformLayer;
 
 export type CAAsset = {
   path: string;

@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Pencil, Trash2, Sun, Moon, Keyboard, PanelLeft, PanelRight, Settings as Gear, ArrowUpDown, Layers as LayersIcon, Check, X, Star, MoreVertical, Eye, EyeOff, Undo2, Redo2, Youtube } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEditor } from "./editor-context";
-import type { AnyLayer, GroupLayer } from "@/lib/ca/types";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";

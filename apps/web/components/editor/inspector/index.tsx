@@ -130,8 +130,10 @@ export function Inspector() {
     if (selected?.type === 'video') {
       baseTabs.push({ id: 'video' as TabId, icon: Video, label: 'Video' });
     }
-    baseTabs.push({ id: 'animations' as TabId, icon: Play, label: 'Animations' });
-    if (doc?.meta.gyroEnabled) {
+    if (selected?.type !== 'transform') {
+      baseTabs.push({ id: 'animations' as TabId, icon: Play, label: 'Animations' });
+    }
+    if (doc?.meta.gyroEnabled && selected?.type === 'transform') {
       baseTabs.push({ id: 'gyro' as TabId, icon: Smartphone, label: 'Gyro (Parallax)' });
     }
     if (selected?.type === 'emitter') {
@@ -145,18 +147,20 @@ export function Inspector() {
   }, [selected?.type, doc?.meta.gyroEnabled]);
 
   useEffect(() => {
-    if (selected?.type === 'text' && (activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
+    if (selected?.type === 'text' && (['gradient', 'image', 'video', 'emitter', 'gyro'].includes(activeTab))) {
       setActiveTab('text');
-    } else if (selected?.type === 'gradient' && (activeTab === 'text' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
+    } else if (selected?.type === 'gradient' && (['text', 'image', 'video', 'emitter', 'gyro'].includes(activeTab))) {
       setActiveTab('gradient');
-    } else if (selected?.type === 'image' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'video' || activeTab === 'emitter')) {
+    } else if (selected?.type === 'image' && (['text', 'gradient', 'video', 'emitter', 'gyro'].includes(activeTab))) {
       setActiveTab('image');
-    } else if (selected?.type === 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'emitter')) {
+    } else if (selected?.type === 'video' && (['text', 'gradient', 'image', 'emitter', 'gyro'].includes(activeTab))) {
       setActiveTab('video');
-    } else if (selected?.type !== 'text' && selected?.type !== 'emitter' && selected?.type !== 'gradient' && selected?.type !== 'image' && selected?.type !== 'video' && (activeTab === 'text' || activeTab === 'gradient' || activeTab === 'image' || activeTab === 'video' || activeTab === 'emitter')) {
+    } else if (!['text','emitter', 'gradient', 'image', 'video', 'transform'].includes(selected?.type) && ['text', 'gradient', 'image', 'video', 'emitter', 'gyro'].includes(activeTab)) {
       setActiveTab('geometry');
-    } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content'].includes(activeTab))) {
+    } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'gyro'].includes(activeTab))) {
       setActiveTab('emitter');
+    } else if (selected?.type === 'transform' && (['animations', 'text', 'gradient', 'image', 'video', 'emitter'].includes(activeTab))) {
+      setActiveTab('gyro');
     }
   }, [selected?.type, activeTab]);
 
