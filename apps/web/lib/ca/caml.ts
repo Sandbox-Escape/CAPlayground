@@ -215,7 +215,8 @@ export function parseCAML(xml: string): AnyLayer | null {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   const caml = doc.getElementsByTagNameNS(CAML_NS, 'caml')[0] || doc.documentElement;
   if (!caml) return null;
-  const root = caml.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
+  let root = caml.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
+  if (root.id === '__capRootLayer__') root = root.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
   if (!root) return null;
   return parseCALayer(root);
 }
@@ -630,7 +631,15 @@ export function serializeCAML(
 ): string {
   const doc = document.implementation.createDocument(CAML_NS, 'caml', null);
   const caml = doc.documentElement;
-  const rootEl = serializeLayer(doc, root, project, wallpaperParallaxGroupsInput);
+  const capRootLayer: AnyLayer = {
+    ...root,
+    id: '__capRootLayer__',
+    name: 'CAPlayground Root Layer',
+    geometryFlipped: 0,
+    children: [root],
+  }
+  
+  const rootEl = serializeLayer(doc, capRootLayer, project, wallpaperParallaxGroupsInput);
 
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
@@ -714,7 +723,7 @@ export function serializeCAML(
       if (typeof ov.value === 'number') {
         let outVal = ov.value;
         if (ov.keyPath === 'transform.rotation.z') {
-          outVal = (ov.value as number) * Math.PI / 180;
+          outVal = Number((ov.value * Math.PI / 180).toFixed(5));
         }
         if (ov.keyPath === 'position.x' || ov.keyPath === 'position.y') {
           outVal = Math.round(outVal);
