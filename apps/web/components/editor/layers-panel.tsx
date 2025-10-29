@@ -106,7 +106,7 @@ export function LayersPanel() {
   };
 
   const renderItem = (l: AnyLayer, depth: number) => {
-    const isProtected = l.name === 'FLOATING' || l.name === 'BACKGROUND';
+  const isProtected = l.name === 'FLOATING' || l.name === 'BACKGROUND';
     const hasChildren = (l.children?.length ?? 0) > 0;
     const isCollapsed = collapsed.has(l.id);
     const isChecked = multiSelectedIds.includes(l.id);
@@ -231,21 +231,22 @@ export function LayersPanel() {
               </>
             )}
           </div>
-          {!isProtected && (
-            <div className="flex items-center gap-1 pr-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  toggleLayerVisibility(l.id);
-                }}
-                aria-label={isHidden ? 'Show layer' : 'Hide layer'}
-                title={isHidden ? 'Show layer' : 'Hide layer'}
-              >
-                {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+          <div className="flex items-center gap-1 pr-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                toggleLayerVisibility(l.id);
+              }}
+              aria-label={isHidden ? 'Show layer' : 'Hide layer'}
+              title={isHidden ? 'Show layer' : 'Hide layer'}
+            >
+              {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+
+            {!isProtected && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -266,8 +267,8 @@ export function LayersPanel() {
                   <DropdownMenuItem onClick={() => { setIsSelectMode(true); setMultiSelectedIds((prev) => prev.includes(l.id) ? prev : [...prev, l.id]); }}>Select</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         {showDropLineAfter && (
           <div
