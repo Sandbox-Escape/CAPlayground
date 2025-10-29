@@ -2107,7 +2107,13 @@ export function CanvasPreview() {
           const dy = t2.clientY - t1.clientY;
           const dist = Math.hypot(dx, dy);
           const rawFactor = dist / Math.max(1, g.startDist);
-          const factor = 1 + (rawFactor - 1) * pinchZoomSensitivity;
+
+          const v = pinchZoomSensitivity;
+          const lowSensitivity = 0.5;
+          const normalizedV = (v - 1.25) / 0.75;
+          const effectiveSensitivity = lowSensitivity * (2 * normalizedV * normalizedV + 1);
+
+          const factor = 1 + (rawFactor - 1) * effectiveSensitivity;
           const nextUserScale = Math.min(5, Math.max(0.2, g.startUserScale * factor));
           const nextScale = fitScale * nextUserScale;
           const worldX = (g.startCenterX - (baseOffsetX + g.startPanX)) / (fitScale * g.startUserScale);
