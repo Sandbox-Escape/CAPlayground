@@ -135,3 +135,21 @@ export function containsId(layers: AnyLayer[], id: string): boolean {
   }
   return false;
 }
+
+export function getNextLayerName(layers: AnyLayer[], base: string = 'Transform Layer') {
+  function collectNames(list: AnyLayer[], acc: string[] = []) {
+    for (const layer of list) {
+      if (layer.name) acc.push(layer.name);
+      if (layer.children?.length) collectNames(layer.children, acc);
+    }
+    return acc;
+  }
+
+  const allNames = collectNames(layers);
+  let i = 1;
+  while (allNames.includes(`${base} ${i}`)) {
+    i++;
+  }
+
+  return `${base} ${i}`;
+}

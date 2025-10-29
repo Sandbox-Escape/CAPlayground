@@ -14,6 +14,7 @@ import {
   deleteInTree,
   containsId,
   insertIntoSelected,
+  getNextLayerName,
 } from "@/lib/editor/layer-utils";
 import { sanitizeFilename, dataURLToBlob } from "@/lib/editor/file-utils";
 import { CAEmitterCell } from "./emitter/emitter";
@@ -519,7 +520,7 @@ export function EditorProvider({
           };
           return layers.map(mapOne);
         };
-        const rootBase = {
+        const rootBase: AnyLayer = {
           id: snapshot.meta.id,
           name: 'Root Layer',
           type: 'basic',
@@ -660,7 +661,6 @@ export function EditorProvider({
 
       const selId = cur.selectedId || null;
       const nextLayers = insertIntoSelected(cur.layers, selId, layer);
-      console.log('nextLayers', nextLayers);
       
       const next = { ...cur, layers: nextLayers, selectedId: layer.id };
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
@@ -1248,7 +1248,7 @@ export function EditorProvider({
       const x = (parentLayer?.size.w || canvasW) / 2;
       const y = (parentLayer?.size.h || canvasH) / 2;
       const layer: TransformLayer = {
-        ...addBase('Transform Layer'),
+        ...addBase(getNextLayerName(cur.layers, 'Transform Layer')),
         position: { x, y },
         size: { w: 200, h: 200 },
         type: 'transform',

@@ -104,6 +104,10 @@ const ProjectThumb = React.memo(function ProjectThumb({
     const top = useYUp ? (containerH - (l.position.y + (1 - a.y) * l.size.h)) : (l.position.y - a.y * l.size.h);
     return { left, top, a };
   };
+  const renderChildren = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
+    if (!Array.isArray(l.children)) return null;
+    return l.children.map((c: AnyLayer) => renderLayer(c, containerH, useYUp));
+  };
   const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
     const { left, top, a } = computeCssLT(l, containerH, useYUp);
     const common: React.CSSProperties = {
@@ -122,7 +126,10 @@ const ProjectThumb = React.memo(function ProjectThumb({
     };
     if (l.type === 'text') {
       const t = l as any;
-      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>{t.text}</div>;
+      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>
+          {t.text}
+          {renderChildren(l, l.size.h, useYUp)}
+        </div>;
     }
     if (l.type === 'image') {
       const im = l as any;
@@ -172,7 +179,9 @@ const ProjectThumb = React.memo(function ProjectThumb({
         background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
       }
       
-      return <div key={l.id} style={{ ...common, background }} />;
+      return <div key={l.id} style={{ ...common, background }}>
+        {renderChildren(l, l.size.h, useYUp)}
+      </div>;
     }
     if (l.type === 'shape') {
       const s = l as any;
@@ -182,13 +191,15 @@ const ProjectThumb = React.memo(function ProjectThumb({
       if (s.borderColor && s.borderWidth) {
         style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
       }
-      return <div key={l.id} style={style} />;
+      return <div key={l.id} style={style}>
+        {renderChildren(l, l.size.h, useYUp)}
+      </div>;
     }
-    if ((l as any).type === 'group') {
+    if (l.type === 'basic') {
       const g = l as any;
       return (
         <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
-          {Array.isArray(g.children) ? g.children.map((c: AnyLayer) => renderLayer(c, g.size.h, useYUp)) : null}
+          {renderChildren(l, l.size.h, useYUp)}
         </div>
       );
     }
