@@ -80,6 +80,8 @@ export type EditorContextValue = {
   setIsAnimationPlaying: React.Dispatch<React.SetStateAction<boolean>>;
   animatedLayers: AnyLayer[];
   setAnimatedLayers: React.Dispatch<React.SetStateAction<AnyLayer[]>>;
+  hiddenLayerIds: Set<string>;
+  toggleLayerVisibility: (id: string) => void;
 };
 
 const EditorContext = createContext<EditorContextValue | undefined>(undefined);
@@ -110,6 +112,7 @@ export function EditorProvider({
   
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(false);
   const [animatedLayers, setAnimatedLayers] = useState<AnyLayer[]>([]);
+  const [hiddenLayerIds, setHiddenLayerIds] = useState<Set<string>>(new Set());
 
   const currentKey = doc?.activeCA ?? 'floating';
   const currentDoc: CADoc | null = doc ? doc.docs[currentKey] : null;
@@ -1541,6 +1544,18 @@ export function EditorProvider({
     });
   }, []);
 
+  const toggleLayerVisibility = useCallback((id: string) => {
+    setHiddenLayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
   const value = useMemo<EditorContextValue>(() => ({
     doc,
     setDoc,
@@ -1579,6 +1594,8 @@ export function EditorProvider({
     setIsAnimationPlaying,
     animatedLayers,
     setAnimatedLayers,
+    hiddenLayerIds,
+    toggleLayerVisibility,
   }), [
     doc,
     setDoc,
@@ -1615,6 +1632,8 @@ export function EditorProvider({
     setIsAnimationPlaying,
     animatedLayers,
     setAnimatedLayers,
+    hiddenLayerIds,
+    toggleLayerVisibility,
   ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;

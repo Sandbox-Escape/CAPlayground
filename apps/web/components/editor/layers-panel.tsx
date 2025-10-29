@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, ChevronRight, ChevronDown, Copy, Trash2, Check } from "lucide-react";
+import { Plus, MoreVertical, ChevronRight, ChevronDown, Copy, Trash2, Check, Eye, EyeOff } from "lucide-react";
 import { useEditor } from "./editor-context";
 import { useEffect, useRef, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -24,6 +24,8 @@ export function LayersPanel() {
     updateLayer,
     addEmitterLayer,
     addTransformLayer,
+    hiddenLayerIds,
+    toggleLayerVisibility,
   } = useEditor();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -108,6 +110,7 @@ export function LayersPanel() {
     const hasChildren = (l.children?.length ?? 0) > 0;
     const isCollapsed = collapsed.has(l.id);
     const isChecked = multiSelectedIds.includes(l.id);
+    const isHidden = hiddenLayerIds.has(l.id);
 
     const showDropLineBefore = dragOverId === l.id && dropPosition === 'before';
     const showDropLineAfter = dragOverId === l.id && dropPosition === 'after';
@@ -124,7 +127,7 @@ export function LayersPanel() {
           />
         )}
         <div
-          className={`py-2 flex items-center justify-between cursor-pointer ${selectedId === l.id ? 'bg-accent/30' : 'hover:bg-muted/50'}`}
+          className={`py-2 flex items-center justify-between cursor-pointer ${selectedId === l.id ? 'bg-accent/30' : 'hover:bg-muted/50'} ${isHidden ? 'opacity-50' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             if (isSelectMode) toggleMultiSelect(l.id);
@@ -230,6 +233,19 @@ export function LayersPanel() {
           </div>
           {!isProtected && (
             <div className="flex items-center gap-1 pr-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground"
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  toggleLayerVisibility(l.id);
+                }}
+                aria-label={isHidden ? 'Show layer' : 'Hide layer'}
+                title={isHidden ? 'Show layer' : 'Hide layer'}
+              >
+                {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

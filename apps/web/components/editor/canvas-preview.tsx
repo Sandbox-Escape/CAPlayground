@@ -33,6 +33,7 @@ export function CanvasPreview() {
     setAnimatedLayers,
     moveLayer,
     deleteLayer,
+    hiddenLayerIds,
   } = useEditor();
   const docRef = useRef<typeof doc>(doc);
   useEffect(() => { docRef.current = doc; }, [doc]);
@@ -1117,7 +1118,7 @@ export function CanvasPreview() {
       transform: `rotateX(${-((l as any).rotationX ?? 0)}deg) rotateY(${-((l as any).rotationY ?? 0)}deg) rotate(${-(l.rotation ?? 0)}deg)`,
       transformOrigin: `${a.x * 100}% ${transformOriginY}%`,
       backfaceVisibility: "visible",
-      display: l.visible === false ? "none" : undefined,
+      display: (l.visible === false || hiddenLayerIds.has(l.id)) ? "none" : undefined,
       opacity: typeof (l as any).opacity === 'number' ? Math.max(0, Math.min(1, (l as any).opacity)) : undefined,
       cursor: "move",
       pointerEvents: isWrappedContent ? 'none' : undefined,
