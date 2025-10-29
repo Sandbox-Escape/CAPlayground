@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { isUsingOPFS } from "@/lib/storage";
 
 export function BrowserWarning() {
   const [showWarning, setShowWarning] = useState(false);
@@ -15,23 +16,13 @@ export function BrowserWarning() {
       return;
     }
 
-    const isPartiallySupported = detectPartialSupport();
-    setShowWarning(isPartiallySupported);
-  }, []);
+    async function checkSupport() {
+      const opfsSupported = await isUsingOPFS();
+      setShowWarning(!opfsSupported);
+    }
 
-  const detectPartialSupport = (): boolean => {
-    const ua = navigator.userAgent.toLowerCase();
-    
-    const isOldSafari = /safari/.test(ua) && !/chrome/.test(ua) && !/crios/.test(ua) && !/fxios/.test(ua);
-    const isFirefox = /firefox/.test(ua);
-    const isOldEdge = /edge\//.test(ua);
-    const isIE = /trident/.test(ua) || /msie/.test(ua);
-    
-    const isMobileSafari = /iphone|ipad|ipod/.test(ua) && /safari/.test(ua);
-    const isAndroidBrowser = /android/.test(ua) && !/chrome/.test(ua);
-    
-    return isOldSafari || isFirefox || isOldEdge || isIE || isAndroidBrowser;
-  };
+    checkSupport();
+  }, []);
 
   const handleDismiss = () => {
     sessionStorage.setItem("browser-warning-dismissed", "true");
@@ -51,15 +42,10 @@ export function BrowserWarning() {
         </AlertTitle>
         <AlertDescription>
           <p className="mb-2">
-            Your browser may have limited compatibility with this editor. You might experience issues with:
+            Your browser does not support the Origin Private File System (OPFS), so projects are being saved to IndexedDB as a fallback. This may have performance implications.
           </p>
-          <ul className="list-disc list-inside space-y-1 text-xs">
-            <li>Rendering certain visual effects</li>
-            <li>Saving projects or assets</li>
-            <li>Performance and responsiveness</li>
-          </ul>
           <p className="mt-2 text-xs">
-            For the best experience, we recommend using the latest version of Chrome, Edge, or Safari. If you are, it might be because you are on Incognito or Private browsing mode.
+            For the best experience, we recommend using a browser that supports OPFS, such as the latest version of Chrome, Edge, or Safari (not in private browsing mode).
           </p>
         </AlertDescription>
         <button
