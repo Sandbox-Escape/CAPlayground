@@ -1142,6 +1142,7 @@ export function CanvasPreview() {
       pointerEvents: isWrappedContent ? 'none' : undefined,
       ...(borderStyle || {}),
       ...(typeof (l as any).cornerRadius === 'number' ? { borderRadius: (l as any).cornerRadius } : {}),
+      overflow: (l as any).masksToBounds ? 'hidden' : 'visible',
     };
     const nextUseYUp = (typeof (l as any).geometryFlipped === 'number')
       ? (((l as any).geometryFlipped as 0 | 1) === 0)
@@ -1327,7 +1328,6 @@ export function CanvasPreview() {
       const style: React.CSSProperties = {
         ...common,
         ...bgStyleFor(l),
-        ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
       };
       return (
         <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
@@ -1358,7 +1358,6 @@ export function CanvasPreview() {
       const style: React.CSSProperties = {
         ...common,
         ...bgStyleFor(l),
-        ...((l as any).masksToBounds ? { overflow: 'hidden' } : {}),
       };
       return (
         <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
@@ -1420,7 +1419,6 @@ export function CanvasPreview() {
       const style: React.CSSProperties = {
         ...common,
         ...bgStyleFor(e),
-        ...((e as any).masksToBounds ? { overflow: 'hidden' } : {}),
         transform: transformString,
         transformStyle: 'preserve-3d',
       };
