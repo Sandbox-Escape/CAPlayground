@@ -44,6 +44,7 @@ export function SettingsPanel({
   const [SNAP_THRESHOLD, setSnapThreshold] = useLocalStorage<number>("caplay_settings_snap_threshold", 12);
   const [showAnchorPoint, setShowAnchorPoint] = useLocalStorage<boolean>("caplay_preview_anchor_point", false);
   const [autoClosePanels, setAutoClosePanels] = useLocalStorage<boolean>("caplay_settings_auto_close_panels", true);
+  const [pinchZoomSensitivity, setPinchZoomSensitivity] = useLocalStorage<number>("caplay_settings_pinch_zoom_sensitivity", 1);
 
   useEffect(() => setMounted(true), []);
 
@@ -157,7 +158,14 @@ export function SettingsPanel({
                 <Label htmlFor="show-anchor-point" className="text-sm">Show anchor point</Label>
                 <Switch id="show-anchor-point" checked={!!showAnchorPoint} onCheckedChange={(c) => setShowAnchorPoint(!!c)} />
               </div>
-            </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="pinch-zoom-sensitivity" className="text-sm">Pinch to zoom sensitivity</Label>
+                  <Button variant="outline" size="sm" onClick={()=>{setPinchZoomSensitivity(1)}}>Reset</Button>
+                </div>
+                <Slider id="pinch-zoom-sensitivity" value={[pinchZoomSensitivity]} min={0.5} max={2} step={0.1} onValueChange={([c]) => setPinchZoomSensitivity(c)} />
+              </div>
+            </div> 
           </div>
 
           {/* Keyboard Shortcuts */}

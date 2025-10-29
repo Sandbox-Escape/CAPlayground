@@ -56,6 +56,7 @@ export function CanvasPreview() {
   const [showClockOverlay, setShowClockOverlay] = useLocalStorage<boolean>("caplay_preview_clock_overlay", false);
   const [clockDepthEffect, setClockDepthEffect] = useLocalStorage<boolean>("caplay_preview_clock_depth", false);
   const [showAnchorPoint, setShowAnchorPoint] = useLocalStorage<boolean>("caplay_preview_anchor_point", false);
+  const [pinchZoomSensitivity] = useLocalStorage<number>("caplay_settings_pinch_zoom_sensitivity", 1);
   const [clockMenuOpen, setClockMenuOpen] = useState(false);
   const panDragRef = useRef<{
     startClientX: number;
@@ -86,6 +87,23 @@ export function CanvasPreview() {
     });
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+    
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
   }, []);
 
   // clipboard copy/paste
@@ -2046,7 +2064,7 @@ export function CanvasPreview() {
           const clientY = e.clientY - rect.top;
           const worldX = (clientX - (baseOffsetX + pan.x)) / scale;
           const worldY = (clientY - (baseOffsetY + pan.y)) / scale;
-          const factor = Math.exp(-e.deltaY * 0.001);
+          const factor = Math.exp(-e.deltaY * 0.001 * pinchZoomSensitivity);
           const nextUserScale = Math.min(5, Math.max(0.2, userScale * factor));
           const nextScale = fitScale * nextUserScale;
           const nextPanX = clientX - worldX * nextScale - baseOffsetX;
@@ -2088,7 +2106,8 @@ export function CanvasPreview() {
           const dx = t2.clientX - t1.clientX;
           const dy = t2.clientY - t1.clientY;
           const dist = Math.hypot(dx, dy);
-          const factor = dist / Math.max(1, g.startDist);
+          const rawFactor = dist / Math.max(1, g.startDist);
+          const factor = 1 + (rawFactor - 1) * pinchZoomSensitivity;
           const nextUserScale = Math.min(5, Math.max(0.2, g.startUserScale * factor));
           const nextScale = fitScale * nextUserScale;
           const worldX = (g.startCenterX - (baseOffsetX + g.startPanX)) / (fitScale * g.startUserScale);
