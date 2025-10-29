@@ -2135,17 +2135,18 @@ export function CanvasPreview() {
           window.addEventListener('mouseup', onUp);
           return;
         }
-        selectLayer(null);
       }}
       onKeyDown={() => {}}
     >
       <div
         className="absolute inset-0 dark:hidden cursor-[inherit]"
         style={{ background: "repeating-conic-gradient(#f8fafc 0% 25%, #e5e7eb 0% 50%) 50% / 20px 20px" }}
+        onClick={() => selectLayer(null)}
       />
       <div
         className="absolute inset-0 hidden dark:block cursor-[inherit]"
         style={{ background: "repeating-conic-gradient(#0b1220 0% 25%, #1f2937 0% 50%) 50% / 20px 20px" }}
+        onClick={() => selectLayer(null)}
       />
       <div
         id="root-canvas"
