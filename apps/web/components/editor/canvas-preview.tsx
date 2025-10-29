@@ -2224,6 +2224,7 @@ export function CanvasPreview() {
               border: '3px dotted #ffffff',
               borderRadius: 0,
               mixBlendMode: 'difference',
+              zIndex: 2000,
             }}
           />
         )}
