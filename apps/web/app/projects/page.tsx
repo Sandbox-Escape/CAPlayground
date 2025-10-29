@@ -104,6 +104,10 @@ const ProjectThumb = React.memo(function ProjectThumb({
     const top = useYUp ? (containerH - (l.position.y + (1 - a.y) * l.size.h)) : (l.position.y - a.y * l.size.h);
     return { left, top, a };
   };
+  const renderChildren = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
+    if (!Array.isArray(l.children)) return null;
+    return l.children.map((c: AnyLayer) => renderLayer(c, containerH, useYUp));
+  };
   const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
     const { left, top, a } = computeCssLT(l, containerH, useYUp);
     const common: React.CSSProperties = {
@@ -116,13 +120,15 @@ const ProjectThumb = React.memo(function ProjectThumb({
       transformOrigin: `${a.x * 100}% ${a.y * 100}%`,
       opacity: (l as any).opacity ?? 1,
       display: (l as any).visible === false ? 'none' as any : undefined,
-      overflow: 'hidden',  
       backfaceVisibility: 'hidden',
       transformStyle: 'preserve-3d',
     };
     if (l.type === 'text') {
       const t = l as any;
-      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>{t.text}</div>;
+      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>
+          {t.text}
+          {renderChildren(l, l.size.h, useYUp)}
+        </div>;
     }
     if (l.type === 'image') {
       const im = l as any;
@@ -172,7 +178,9 @@ const ProjectThumb = React.memo(function ProjectThumb({
         background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
       }
       
-      return <div key={l.id} style={{ ...common, background }} />;
+      return <div key={l.id} style={{ ...common, background }}>
+        {renderChildren(l, l.size.h, useYUp)}
+      </div>;
     }
     if (l.type === 'shape') {
       const s = l as any;
@@ -182,13 +190,18 @@ const ProjectThumb = React.memo(function ProjectThumb({
       if (s.borderColor && s.borderWidth) {
         style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
       }
-      return <div key={l.id} style={style} />;
+      if (s.backgroundColor) {
+        style.backgroundColor = s.backgroundColor;
+      }
+      return <div key={l.id} style={style}>
+        {renderChildren(l, l.size.h, useYUp)}
+      </div>;
     }
-    if ((l as any).type === 'group') {
+    if (l.type === 'basic' || l.type === 'emitter' || l.type === 'transform') {
       const g = l as any;
       return (
         <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
-          {Array.isArray(g.children) ? g.children.map((c: AnyLayer) => renderLayer(c, g.size.h, useYUp)) : null}
+          {renderChildren(l, l.size.h, useYUp)}
         </div>
       );
     }
@@ -206,7 +219,8 @@ const ProjectThumb = React.memo(function ProjectThumb({
           transform: `translate(${ox}px, ${oy}px) scale(${s})`,
           transformOrigin: 'top left',
           borderRadius: 4,
-          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)',
+          overflow: 'hidden',
         }}
       >
         {((doc?.layers) || []).map((l) => renderLayer(l, h, true))}
@@ -634,12 +648,16 @@ function ProjectsContent() {
 
         for (const p of need) {
           const folder = `${p.name}.ca`;
-          const [floating, background] = await Promise.all([
+          const [floating, background, wallpaper] = await Promise.all([
             listFiles(p.id, `${folder}/Floating.ca/`),
             listFiles(p.id, `${folder}/Background.ca/`),
+            listFiles(p.id, `${folder}/Wallpaper.ca/`),
           ]);
-          const byPath = new Map([...floating, ...background].map(f => [f.path, f] as const));
-          const main = byPath.get(`${folder}/Floating.ca/main.caml`) || byPath.get(`${folder}/Background.ca/main.caml`);
+          const byPath = new Map([...floating, ...background, ...wallpaper].map(f => [f.path, f] as const));
+          const floatingMain = byPath.get(`${folder}/Floating.ca/main.caml`);
+          const backgroundMain = byPath.get(`${folder}/Background.ca/main.caml`);
+          const wallpaperMain = byPath.get(`${folder}/Wallpaper.ca/main.caml`);
+          const main = floatingMain || backgroundMain || wallpaperMain;
           let bg = '#e5e7eb';
           let width = p.width;
           let height = p.height;
@@ -652,7 +670,7 @@ function ProjectsContent() {
                 width = Math.round(root.size?.w || width || 390);
                 height = Math.round(root.size?.h || height || 844);
                 if (typeof root.backgroundColor === 'string') bg = root.backgroundColor;
-                layers = root?.type === 'basic' ? (root.children || []) : [root];
+                layers = root.children?.length ? root.children : [root];
               }
             } catch {}
           }
@@ -664,8 +682,19 @@ function ProjectsContent() {
               r.readAsDataURL(blob);
             });
           };
+          if (backgroundMain && backgroundMain.type === 'text' && typeof backgroundMain.data === 'string' && main !== backgroundMain) {
+            try {
+              const { parseCAML } = await import('@/lib/ca/caml');
+              const root = parseCAML(backgroundMain.data) as any;
+              if (root) {
+                if (typeof root.backgroundColor === 'string') bg = root.backgroundColor;
+                const backgroundLayers = root.children?.length ? root.children : [root];
+                layers = [...backgroundLayers, ...layers];
+              }
+            } catch {}
+          }
           const filenameToDataURL: Record<string, string> = {};
-          const assetFiles = [...floating, ...background].filter(f => /\/assets\//.test(f.path) && f.type === 'blob');
+          const assetFiles = [...floating, ...background, ...wallpaper].filter(f => /\/assets\//.test(f.path) && f.type === 'blob');
           for (const f of assetFiles) {
             const filename = f.path.split('/assets/')[1];
             try {
