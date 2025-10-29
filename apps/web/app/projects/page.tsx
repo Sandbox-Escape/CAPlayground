@@ -191,6 +191,9 @@ const ProjectThumb = React.memo(function ProjectThumb({
       if (s.borderColor && s.borderWidth) {
         style.border = `${Math.max(0, Math.round(s.borderWidth))}px solid ${s.borderColor}`;
       }
+      if (s.backgroundColor) {
+        style.backgroundColor = s.backgroundColor;
+      }
       return <div key={l.id} style={style}>
         {renderChildren(l, l.size.h, useYUp)}
       </div>;
@@ -645,12 +648,13 @@ function ProjectsContent() {
 
         for (const p of need) {
           const folder = `${p.name}.ca`;
-          const [floating, background] = await Promise.all([
+          const [floating, background, wallpaper] = await Promise.all([
             listFiles(p.id, `${folder}/Floating.ca/`),
             listFiles(p.id, `${folder}/Background.ca/`),
+            listFiles(p.id, `${folder}/Wallpaper.ca/`),
           ]);
-          const byPath = new Map([...floating, ...background].map(f => [f.path, f] as const));
-          const main = byPath.get(`${folder}/Floating.ca/main.caml`) || byPath.get(`${folder}/Background.ca/main.caml`);
+          const byPath = new Map([...floating, ...background, ...wallpaper].map(f => [f.path, f] as const));
+          const main = byPath.get(`${folder}/Floating.ca/main.caml`) || byPath.get(`${folder}/Background.ca/main.caml`) || byPath.get(`${folder}/Wallpaper.ca/main.caml`);
           let bg = '#e5e7eb';
           let width = p.width;
           let height = p.height;
@@ -676,7 +680,7 @@ function ProjectsContent() {
             });
           };
           const filenameToDataURL: Record<string, string> = {};
-          const assetFiles = [...floating, ...background].filter(f => /\/assets\//.test(f.path) && f.type === 'blob');
+          const assetFiles = [...floating, ...background, ...wallpaper].filter(f => /\/assets\//.test(f.path) && f.type === 'blob');
           for (const f of assetFiles) {
             const filename = f.path.split('/assets/')[1];
             try {
