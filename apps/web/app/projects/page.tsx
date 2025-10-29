@@ -120,7 +120,6 @@ const ProjectThumb = React.memo(function ProjectThumb({
       transformOrigin: `${a.x * 100}% ${a.y * 100}%`,
       opacity: (l as any).opacity ?? 1,
       display: (l as any).visible === false ? 'none' as any : undefined,
-      overflow: 'hidden',  
       backfaceVisibility: 'hidden',
       transformStyle: 'preserve-3d',
     };
@@ -198,7 +197,7 @@ const ProjectThumb = React.memo(function ProjectThumb({
         {renderChildren(l, l.size.h, useYUp)}
       </div>;
     }
-    if (l.type === 'basic') {
+    if (l.type === 'basic' || l.type === 'emitter' || l.type === 'transform') {
       const g = l as any;
       return (
         <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
@@ -220,7 +219,8 @@ const ProjectThumb = React.memo(function ProjectThumb({
           transform: `translate(${ox}px, ${oy}px) scale(${s})`,
           transformOrigin: 'top left',
           borderRadius: 4,
-          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)'
+          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)',
+          overflow: 'hidden',
         }}
       >
         {((doc?.layers) || []).map((l) => renderLayer(l, h, true))}
@@ -654,7 +654,10 @@ function ProjectsContent() {
             listFiles(p.id, `${folder}/Wallpaper.ca/`),
           ]);
           const byPath = new Map([...floating, ...background, ...wallpaper].map(f => [f.path, f] as const));
-          const main = byPath.get(`${folder}/Floating.ca/main.caml`) || byPath.get(`${folder}/Background.ca/main.caml`) || byPath.get(`${folder}/Wallpaper.ca/main.caml`);
+          const floatingMain = byPath.get(`${folder}/Floating.ca/main.caml`);
+          const backgroundMain = byPath.get(`${folder}/Background.ca/main.caml`);
+          const wallpaperMain = byPath.get(`${folder}/Wallpaper.ca/main.caml`);
+          const main = floatingMain || backgroundMain || wallpaperMain;
           let bg = '#e5e7eb';
           let width = p.width;
           let height = p.height;
@@ -667,7 +670,7 @@ function ProjectsContent() {
                 width = Math.round(root.size?.w || width || 390);
                 height = Math.round(root.size?.h || height || 844);
                 if (typeof root.backgroundColor === 'string') bg = root.backgroundColor;
-                layers = root?.type === 'basic' ? (root.children || []) : [root];
+                layers = root.children?.length ? root.children : [root];
               }
             } catch {}
           }
@@ -679,6 +682,17 @@ function ProjectsContent() {
               r.readAsDataURL(blob);
             });
           };
+          if (backgroundMain && backgroundMain.type === 'text' && typeof backgroundMain.data === 'string' && main !== backgroundMain) {
+            try {
+              const { parseCAML } = await import('@/lib/ca/caml');
+              const root = parseCAML(backgroundMain.data) as any;
+              if (root) {
+                if (typeof root.backgroundColor === 'string') bg = root.backgroundColor;
+                const backgroundLayers = root.children?.length ? root.children : [root];
+                layers = [...backgroundLayers, ...layers];
+              }
+            } catch {}
+          }
           const filenameToDataURL: Record<string, string> = {};
           const assetFiles = [...floating, ...background, ...wallpaper].filter(f => /\/assets\//.test(f.path) && f.type === 'blob');
           for (const f of assetFiles) {
