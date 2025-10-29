@@ -20,6 +20,8 @@ export type SettingsPanelProps = {
   setLeftWidth?: (n: number) => void;
   setRightWidth?: (n: number) => void;
   setStatesHeight?: (n: number) => void;
+  showLeft?: boolean;
+  showRight?: boolean;
 };
 
 export function SettingsPanel({
@@ -32,6 +34,8 @@ export function SettingsPanel({
   setLeftWidth,
   setRightWidth,
   setStatesHeight,
+  showLeft,
+  showRight,
 }: SettingsPanelProps) {
   const [mounted, setMounted] = useState(false);
   const [entering, setEntering] = useState(false);
@@ -237,6 +241,7 @@ export function SettingsPanel({
                 }
                 onClose();
               }}
+              disabled={!showLeft || !showRight}
             >
               Show onboarding
             </Button>

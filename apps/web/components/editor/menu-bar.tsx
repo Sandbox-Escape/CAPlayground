@@ -756,6 +756,8 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
         setLeftWidth={setLeftWidth}
         setRightWidth={setRightWidth}
         setStatesHeight={setStatesHeight}
+        showLeft={showLeft}
+        showRight={showRight}
       />
     </div>
   );

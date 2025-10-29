@@ -45,7 +45,7 @@ export function EditorOnboarding({ showLeft, showRight }: { showLeft: boolean; s
       id: "states",
       selector: '[data-tour-id="states-panel"]',
       title: "States",
-      body: "Switch between states of what the wallpaper is in, like when your phone is Locked, Unlocked, or in Sleep. You can make state transitions here.",
+      body: "Switch between states of what the wallpaper is in, like when your phone is in Locked, Unlocked, or in Sleep state. You can make state transitions here.",
       placement: "right",
     },
     {
@@ -69,7 +69,7 @@ export function EditorOnboarding({ showLeft, showRight }: { showLeft: boolean; s
       body: "Configure snapping behavior, see keyboard shortcuts, and reset this onboarding to view it again.",
       placement: "bottom",
     },
-  ], [showLeft, showRight]);
+  ], []);
 
   const currentAnchor = useMemo(() => {
     let i = idx;
@@ -111,12 +111,24 @@ export function EditorOnboarding({ showLeft, showRight }: { showLeft: boolean; s
 
   useEffect(() => {
     setReady(true);
-    const seen = typeof window !== 'undefined' ? localStorage.getItem('caplay_onboarding_seen') === '1' : true;
-    if (!seen) setOpen(true);
-    const onStart = () => { setIdx(0); setOpen(true); };
+    if (showLeft && showRight) {
+      const seen = typeof window !== 'undefined' ? localStorage.getItem('caplay_onboarding_seen') === '1' : false;
+      if (!seen) {
+        setTimeout(() => setOpen(true), 150);
+      }
+    } else {
+      setOpen(false);
+    }
+    
+    const onStart = () => {
+      if (showLeft && showRight) {
+        setIdx(0);
+        setOpen(true);
+      }
+    };
     window.addEventListener('caplay:start-onboarding' as any, onStart);
     return () => window.removeEventListener('caplay:start-onboarding' as any, onStart);
-  }, []);
+  }, [showLeft, showRight]);
 
   const finish = () => {
     try { localStorage.setItem('caplay_onboarding_seen', '1'); } catch {}
@@ -129,8 +141,8 @@ export function EditorOnboarding({ showLeft, showRight }: { showLeft: boolean; s
   });
   const goPrev = () => setIdx((v) => Math.max(0, v - 1));
 
-  if (!ready) return null;
-  if (!open) return null;
+  if (!ready || !open) return null;
+
   const step = steps[currentAnchor?.i ?? idx] ?? steps[0];
   const isLast = (currentAnchor?.i ?? idx) === steps.length - 1;
 
@@ -167,7 +179,7 @@ export function EditorOnboarding({ showLeft, showRight }: { showLeft: boolean; s
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" />
       {/* Highlight box */}
-      {r && step.id !== 'layers' && (
+      {r && (
         <div
           className="absolute rounded-md ring-2 ring-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]"
           style={{ left: r.left - 4, top: r.top - 4, width: r.width + 8, height: r.height + 8 }}
