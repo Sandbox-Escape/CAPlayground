@@ -775,7 +775,7 @@ export function CanvasPreview() {
     const step = () => {
       const now = performance.now();
       const p = Math.min(1, (now - startTime) / maxDur);
-      const frame = JSON.parse(JSON.stringify(appliedLayers)) as AnyLayer[];
+      const frame = JSON.parse(JSON.stringify(combinedLayers)) as AnyLayer[];
       const frameMap = indexById(frame);
       for (const trk of tracks) {
         const localP = Math.min(1, (now - startTime) / (trk.duration * 1000));
@@ -798,7 +798,7 @@ export function CanvasPreview() {
       if (animRef.current) cancelAnimationFrame(animRef.current);
       animRef.current = null;
     };
-  }, [current?.activeState, appliedLayers]);
+  }, [current?.activeState, combinedLayers]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
