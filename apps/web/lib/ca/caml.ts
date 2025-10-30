@@ -784,7 +784,18 @@ export function serializeCAML(
 
   const xml = new XMLSerializer().serializeToString(doc);
   const formatted = formatXML(xml);
-  return '<?xml version="1.0" encoding="UTF-8"?>\n' + formatted;
+  const asciiArt = `<!--
+  ╔═══════════════════════════════════════════════════════════════╗
+  ║                                                               ║
+  ║                         CAPlayground                          ║
+  ║                                                               ║
+  ║      Create beautiful Core Animation wallpapers for iOS       ║
+  ║                                                               ║
+  ║          Website: https://caplayground.pages.dev              ║
+  ║                                                               ║
+  ╚═══════════════════════════════════════════════════════════════╝
+-->`;
+  return '<?xml version="1.0" encoding="UTF-8"?>\n' + asciiArt + '\n' + formatted;
 }
 
 function formatXML(xml: string): string {
