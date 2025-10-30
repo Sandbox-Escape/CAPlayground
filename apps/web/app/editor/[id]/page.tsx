@@ -13,6 +13,7 @@ import { LayersPanel } from "@/components/editor/layers-panel";
 import { StatesPanel } from "@/components/editor/states-panel";
 import { Inspector } from "@/components/editor/inspector";
 import { CanvasPreview } from "@/components/editor/canvas-preview";
+import { MobileBottomBar } from "@/components/editor/mobile-bottom-bar";
 import EditorOnboarding from "@/components/editor/onboarding";
 import { BrowserWarning } from "@/components/editor/browser-warning";
 import { getProject } from "@/lib/storage";
@@ -190,14 +191,7 @@ export default function EditorPage() {
                   </div>
                 </div>
               )}
-              <div className="fixed bottom-0 left-0 right-0 flex items-center justify-center py-3 bg-background/95 backdrop-blur-sm border-t shadow-lg z-50" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
-                <button
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border bg-background shadow-sm hover:bg-accent transition-colors touch-manipulation"
-                  onClick={() => setMobileView((v) => (v === 'canvas' ? 'panels' : 'canvas'))}
-                >
-                  {mobileView === 'canvas' ? (<><ChevronUp className="h-4 w-4" /> Show Panels</>) : (<><ChevronDown className="h-4 w-4" /> Show Canvas</>)}
-                </button>
-              </div>
+              <MobileBottomBar mobileView={mobileView} setMobileView={setMobileView} />
             </div>
           ) : (
             // Desktop/tablet layout: original side panels
