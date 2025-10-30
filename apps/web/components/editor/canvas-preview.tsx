@@ -471,8 +471,36 @@ export function CanvasPreview() {
 
   const backgroundLayers = useMemo(() => {
     if (!other || currentKey !== 'floating' || !showBackground) return [] as AnyLayer[];
-    return applyOverrides(other.layers, other.stateOverrides, other.activeState);
-  }, [other?.layers, other?.stateOverrides, other?.activeState, currentKey, showBackground]);
+    const src = current?.activeState;
+    let effective: string | undefined = other.activeState;
+    if (src && src !== 'Base State') {
+      const isVariant = /\s(Light|Dark)$/.test(String(src));
+      const base = String(src).replace(/\s(Light|Dark)$/,'');
+      const otherStates = Array.isArray((other as any).states) ? (other as any).states as string[] : [];
+      const split = !!(other as any).appearanceSplit;
+      const mode: 'light' | 'dark' = ((other as any).appearanceMode === 'dark') ? 'dark' : 'light';
+      if (isVariant) {
+        if (otherStates.includes(src as string)) {
+          effective = src as string;
+        } else if (split) {
+          const light = `${base} Light`;
+          const dark = `${base} Dark`;
+          effective = otherStates.includes(light) ? light : (otherStates.includes(dark) ? dark : base);
+        } else {
+          effective = base;
+        }
+      } else {
+        if (split) {
+          const suffix = mode === 'dark' ? 'Dark' : 'Light';
+          const candidate = `${base} ${suffix}`;
+          effective = otherStates.includes(candidate) ? candidate : base;
+        } else {
+          effective = base;
+        }
+      }
+    }
+    return applyOverrides(other.layers, other.stateOverrides, effective);
+  }, [other?.layers, other?.stateOverrides, other?.activeState, (other as any)?.states, (other as any)?.appearanceSplit, (other as any)?.appearanceMode, current?.activeState, currentKey, showBackground]);
 
   const combinedLayers = useMemo(() => {
     if (currentKey === 'floating' && showBackground && backgroundLayers.length > 0) {
@@ -674,8 +702,8 @@ export function CanvasPreview() {
       }
       return false;
     };
-    return check(current?.layers || []);
-  }, [current?.layers]);
+    return check(combinedLayers || []);
+  }, [combinedLayers]);
 
   useEffect(() => {
     if (!hasAnyEnabledAnimation && isAnimationPlaying) setIsAnimationPlaying(false);
@@ -696,18 +724,6 @@ export function CanvasPreview() {
       gens[0].elements.push({ targetId, keyPath, animation: { duration } });
     };
     const ovs = current?.stateOverrides || {};
-    const pickList = (st?: string): Array<{ targetId: string; keyPath: string; value: any }> => {
-      if (!st) return [];
-      const base = /\s(Light|Dark)$/.test(String(st)) ? String(st).replace(/\s(Light|Dark)$/, '') : String(st);
-      const direct = ovs[st] || [];
-      if (direct && direct.length) return direct as any;
-      return (ovs[base] || []) as any;
-    };
-    const toList = pickList(nextState);
-    const fromList = pickList(prevState);
-    const keys = [
-      'position.x', 'position.y', 'bounds.size.width', 'bounds.size.height', 'transform.rotation.z', 'transform.rotation.x', 'transform.rotation.y', 'opacity', 'cornerRadius'
-    ];
     const byKey = (arr: any[]) => {
       const m = new Map<string, Map<string, number>>();
       for (const it of arr) {
@@ -717,13 +733,71 @@ export function CanvasPreview() {
       }
       return m;
     };
+    const pickList = (st?: string): Array<{ targetId: string; keyPath: string; value: any }> => {
+      if (!st) return [];
+      const base = /\s(Light|Dark)$/.test(String(st)) ? String(st).replace(/\s(Light|Dark)$/, '') : String(st);
+      const direct = ovs[st] || [];
+      if (direct && direct.length) return direct as any;
+      return (ovs[base] || []) as any;
+    };
+    const toList = pickList(nextState);
+    const fromList = pickList(prevState);
+
+    let fromMapBk = new Map<string, Map<string, number>>();
+    let toMapBk = new Map<string, Map<string, number>>();
+    if (currentKey === 'floating' && showBackground && other) {
+      const otherSO = other.stateOverrides || {};
+      const otherStatesArr = Array.isArray((other as any).states) ? ((other as any).states as string[]) : [];
+      const otherSplit = !!(other as any).appearanceSplit;
+      const otherMode: 'light' | 'dark' = ((other as any).appearanceMode === 'dark') ? 'dark' : 'light';
+      const mapBgState = (src?: string): string | undefined => {
+        if (!src || src === 'Base State') return undefined;
+        const isVar = /\s(Light|Dark)$/.test(String(src));
+        const base = String(src).replace(/\s(Light|Dark)$/,'');
+        if (isVar) {
+          if (otherStatesArr.includes(src)) return src;
+          if (otherSplit) {
+            const light = `${base} Light`;
+            const dark = `${base} Dark`;
+            return otherStatesArr.includes(light) ? light : (otherStatesArr.includes(dark) ? dark : base);
+          }
+          return base;
+        } else {
+          if (otherSplit) {
+            const suffix = otherMode === 'dark' ? 'Dark' : 'Light';
+            const cand = `${base} ${suffix}`;
+            return otherStatesArr.includes(cand) ? cand : base;
+          }
+          return base;
+        }
+      };
+      const fromBg = mapBgState(prevState);
+      const toBg = mapBgState(nextState);
+      const pickListBg = (st?: string): Array<{ targetId: string; keyPath: string; value: any }> => {
+        if (!st) return [];
+        const base = /\s(Light|Dark)$/.test(String(st)) ? String(st).replace(/\s(Light|Dark)$/,'') : String(st);
+        const direct = otherSO[st] || [];
+        if (direct && direct.length) return direct as any;
+        return (otherSO[base] || []) as any;
+      };
+      fromMapBk = byKey(pickListBg(fromBg));
+      toMapBk = byKey(pickListBg(toBg));
+    }
+    const keys = [
+      'position.x', 'position.y', 'bounds.size.width', 'bounds.size.height', 'transform.rotation.z', 'transform.rotation.x', 'transform.rotation.y', 'opacity', 'cornerRadius'
+    ];
     const fromMap = byKey(fromList);
     const toMap = byKey(toList);
-    const ids = new Set<string>([...fromMap.keys(), ...toMap.keys()]);
+    const ids = new Set<string>([
+      ...fromMap.keys(),
+      ...toMap.keys(),
+      ...fromMapBk.keys(),
+      ...toMapBk.keys(),
+    ]);
     ids.forEach(id => {
       keys.forEach(k => {
-        const a = fromMap.get(id)?.get(k);
-        const b = toMap.get(id)?.get(k);
+        const a = (fromMap.get(id)?.get(k)) ?? (fromMapBk.get(id)?.get(k));
+        const b = (toMap.get(id)?.get(k)) ?? (toMapBk.get(id)?.get(k));
         if (typeof a === 'number' || typeof b === 'number') {
           addGen(id, k as any, 0.8);
         }

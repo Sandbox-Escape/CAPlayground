@@ -350,7 +350,13 @@ export function EditorProvider({
               let mode: 'light' | 'dark' = cur.appearanceMode || 'light';
               try {
                 const s = localStorage.getItem(`caplay_states_appearance_split_${projectId}_${k}`);
-                split = s === '1';
+                if (s === '1' || s === '0') {
+                  split = s === '1';
+                } else {
+                  const st = Array.isArray(cur.states) ? cur.states : [];
+                  const hasVariant = st.some((n) => /\s(Light|Dark)$/.test(String(n || '')));
+                  split = hasVariant;
+                }
                 const m = localStorage.getItem(`caplay_states_appearance_mode_${projectId}_${k}`);
                 if (m === 'dark' || m === 'light') mode = m;
               } catch {}
