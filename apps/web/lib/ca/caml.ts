@@ -631,6 +631,7 @@ export function serializeCAML(
 ): string {
   const doc = document.implementation.createDocument(CAML_NS, 'caml', null);
   const caml = doc.documentElement;
+  const isWallpaperCA = root.children?.some((c) => c.name === 'BACKGROUND' || c.name === 'WALLPAPER');
   const capRootLayer: AnyLayer = {
     ...root,
     id: '__capRootLayer__',
@@ -638,8 +639,8 @@ export function serializeCAML(
     geometryFlipped: 0,
     children: [root],
   }
-  
-  const rootEl = serializeLayer(doc, capRootLayer, project, wallpaperParallaxGroupsInput);
+
+  const rootEl = serializeLayer(doc, isWallpaperCA ? root :capRootLayer, project, wallpaperParallaxGroupsInput);
 
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
