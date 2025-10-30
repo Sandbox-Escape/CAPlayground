@@ -1962,7 +1962,7 @@ function ProjectsContent() {
               )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {filteredProjects.slice(0, visibleCount).map((project) => {
                 const isSelected = selectedIds.includes(project.id);
                 const pv = previews[project.id];
