@@ -215,7 +215,8 @@ export function parseCAML(xml: string): AnyLayer | null {
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
   const caml = doc.getElementsByTagNameNS(CAML_NS, 'caml')[0] || doc.documentElement;
   if (!caml) return null;
-  const root = caml.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
+  let root = caml.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
+  if (root.id === '__capRootLayer__') root = root.getElementsByTagNameNS(CAML_NS, 'CALayer')[0];
   if (!root) return null;
   return parseCALayer(root);
 }
@@ -630,7 +631,16 @@ export function serializeCAML(
 ): string {
   const doc = document.implementation.createDocument(CAML_NS, 'caml', null);
   const caml = doc.documentElement;
-  const rootEl = serializeLayer(doc, root, project, wallpaperParallaxGroupsInput);
+  const isWallpaperCA = root.children?.some((c) => c.name === 'BACKGROUND' || c.name === 'WALLPAPER');
+  const capRootLayer: AnyLayer = {
+    ...root,
+    id: '__capRootLayer__',
+    name: 'CAPlayground Root Layer',
+    geometryFlipped: 0,
+    children: [root],
+  }
+
+  const rootEl = serializeLayer(doc, isWallpaperCA ? root :capRootLayer, project, wallpaperParallaxGroupsInput);
 
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
@@ -714,7 +724,7 @@ export function serializeCAML(
       if (typeof ov.value === 'number') {
         let outVal = ov.value;
         if (ov.keyPath === 'transform.rotation.z') {
-          outVal = (ov.value as number) * Math.PI / 180;
+          outVal = Number((ov.value * Math.PI / 180).toFixed(5));
         }
         if (ov.keyPath === 'position.x' || ov.keyPath === 'position.y') {
           outVal = Math.round(outVal);
@@ -856,23 +866,18 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
   const mtb = (layer as any).masksToBounds;
   if (mtb === 0 || mtb === 1) setAttr(el, 'masksToBounds', String(mtb));
   setAttr(el, 'opacity', layer.opacity ?? undefined);
-  const rotZ = (layer as any).rotation;
-  const rotX = (layer as any).rotationX;
-  const rotY = (layer as any).rotationY;
-  if (typeof rotZ === 'number' && Number.isFinite(rotZ)) {
-    setAttr(el, 'transform.rotation.z', (rotZ * Math.PI) / 180);
-  }
-  if (typeof rotX === 'number' && Number.isFinite(rotX)) {
-    setAttr(el, 'transform.rotation.x', (rotX * Math.PI) / 180);
-  }
-  if (typeof rotY === 'number' && Number.isFinite(rotY)) {
-    setAttr(el, 'transform.rotation.y', (rotY * Math.PI) / 180);
-  }
+  const rotZ = (layer as any).rotation || 0;
+  const rotX = (layer as any).rotationX || 0;
+  const rotY = (layer as any).rotationY || 0;
+  setAttr(el, 'transform.rotation.z', (rotZ * Math.PI) / 180);
+  setAttr(el, 'transform.rotation.x', (rotX * Math.PI) / 180);
+  setAttr(el, 'transform.rotation.y', (rotY * Math.PI) / 180);
+
   const parts: string[] = [];
-  if (typeof rotZ === 'number' && Number.isFinite(rotZ)) parts.push(`rotate(${rotZ}deg)`);
-  if (typeof rotY === 'number' && Number.isFinite(rotY)) parts.push(`rotate(${rotY}deg, 0, 1, 0)`);
-  if (typeof rotX === 'number' && Number.isFinite(rotX)) parts.push(`rotate(${rotX}deg, 1, 0, 0)`);
-  if (parts.length) setAttr(el, 'transform', parts.join(' '));
+  parts.push(`rotate(${rotZ || 0}deg)`);
+  parts.push(`rotate(${rotY || 0}deg, 0, 1, 0)`);
+  parts.push(`rotate(${rotX || 0}deg, 1, 0, 0)`);
+  setAttr(el, 'transform', parts.join(' '));
   const explicitBgHex = (layer as any).backgroundColor as string | undefined;
   const shapeFillHex = (layer as any).fill as string | undefined;
   const bgHex = explicitBgHex ?? shapeFillHex;
