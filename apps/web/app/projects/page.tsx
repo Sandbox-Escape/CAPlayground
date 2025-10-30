@@ -1290,7 +1290,8 @@ function ProjectsContent() {
       const tendies = await unpackTendies(file);
       
       const id = Date.now().toString();
-      const name = await ensureUniqueProjectName("Imported Tendies");
+      const fileName = file.name.replace(/\.(ca|tendies)$/i, '');
+      const name = await ensureUniqueProjectName(fileName);
       const width = Math.round(tendies.project.width);
       const height = Math.round(tendies.project.height);
       await createProject({ id, name, createdAt: new Date().toISOString(), width, height, gyroEnabled: !!tendies.wallpaper });
