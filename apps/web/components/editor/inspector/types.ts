@@ -9,6 +9,7 @@ export type TabId =
   'image' |
   'video' |
   'emitter' |
+  'replicator' |
   'animations' |
   'gyro';
 

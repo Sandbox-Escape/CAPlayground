@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { AnyLayer, CAProject, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer, TransformLayer } from "@/lib/ca/types";
+import type { AnyLayer, CAProject, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer, TransformLayer, ReplicatorLayer } from "@/lib/ca/types";
 import { serializeCAML } from "@/lib/ca/caml";
 import { getProject, listFiles, putBlobFile, putBlobFilesBatch, putTextFile } from "@/lib/storage";
 import {
@@ -61,6 +61,7 @@ export type EditorContextValue = {
   addVideoLayerFromFile: (file: File) => Promise<void>;
   addEmitterLayer: () => void;
   addTransformLayer: () => void;
+  addReplicatorLayer: () => void;
   removeEmitterCell: (layerId: string, index: number) => void;
   updateLayer: (id: string, patch: Partial<AnyLayer>) => void;
   updateLayerTransient: (id: string, patch: Partial<AnyLayer>) => void;
@@ -1268,6 +1269,34 @@ export function EditorProvider({
       return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
     });
   }, [addBase]);
+
+  const addReplicatorLayer = useCallback(() => {
+    setDoc((prev) => {
+      if (!prev) return prev;
+      const key = prev.activeCA;
+      const cur = prev.docs[key];
+      const selId = cur.selectedId || null;
+      const canvasW = prev.meta.width || 390;
+      const canvasH = prev.meta.height || 844;
+      const parentLayer = findById(cur.layers, cur.selectedId);
+      const x = (parentLayer?.size.w || canvasW) / 2;
+      const y = (parentLayer?.size.h || canvasH) / 2;
+      const layer: ReplicatorLayer = {
+        ...addBase(getNextLayerName(cur.layers, 'Replicator')),
+        position: { x, y },
+        size: { w: canvasW, h: canvasH },
+        type: 'replicator',
+        instanceCount: 5,
+        instanceTranslation: { x: 0, y: 0, z: 0 },
+        instanceRotation: 0,
+        instanceDelay: 0,
+      };
+      const nextLayers = insertIntoSelected(cur.layers, selId, layer);
+
+      const next = { ...cur, layers: nextLayers, selectedId: layer.id };
+      return { ...prev, docs: { ...prev.docs, [key]: next } } as ProjectDocument;
+    });
+  }, [addBase]);
   
   const updateLayer = useCallback((id: string, patch: Partial<AnyLayer>) => {
     setDoc((prev) => {
@@ -1582,6 +1611,7 @@ export function EditorProvider({
     addVideoLayerFromFile,
     addEmitterLayer,
     addTransformLayer,
+    addReplicatorLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,
@@ -1620,6 +1650,7 @@ export function EditorProvider({
     addVideoLayerFromFile,
     addEmitterLayer,
     addTransformLayer,
+    addReplicatorLayer,
     updateLayer,
     updateLayerTransient,
     selectLayer,
