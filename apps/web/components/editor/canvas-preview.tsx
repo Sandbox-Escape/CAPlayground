@@ -1547,6 +1547,22 @@ export function CanvasPreview() {
               const rotationZ = instanceRotation * i;
               
               const shouldShow = instanceDelay === 0 || timeSec >= i * instanceDelay;
+              
+              const birthTime = i * instanceDelay;
+              const instanceTime = Math.max(0, timeSec - birthTime);
+              
+              const animatedChildren = l.children ? JSON.parse(JSON.stringify(l.children)) as AnyLayer[] : [];
+              if (shouldShow) {
+                const walkAndAnimate = (arr: AnyLayer[]) => {
+                  for (const child of arr) {
+                    evalLayerAnimation(child, instanceTime);
+                    if (child.children?.length) {
+                      walkAndAnimate(child.children);
+                    }
+                  }
+                };
+                walkAndAnimate(animatedChildren);
+              }
 
               return (
                 <div
@@ -1563,8 +1579,8 @@ export function CanvasPreview() {
                     display: shouldShow ? undefined : 'none', 
                   }}
                 >
-                  {l.children?.map((c) => {
-                    return renderLayer(c, l.size.h, nextUseYUp, l.children, assets, i > 0);
+                  {animatedChildren.map((c) => {
+                    return renderLayer(c, l.size.h, nextUseYUp, animatedChildren, assets, i > 0);
                   })}
                 </div>
               );
