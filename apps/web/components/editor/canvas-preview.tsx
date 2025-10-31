@@ -12,7 +12,7 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import type { ReactNode, MouseEvent as ReactMouseEvent } from "react";
 import { useEditor } from "./editor-context";
 import { LayerContextMenu } from "./layer-context-menu";
-import type { AnyLayer, EmitterLayer, ShapeLayer, TransformLayer } from "@/lib/ca/types";
+import type { AnyLayer, EmitterLayer, ShapeLayer, TransformLayer, ReplicatorLayer } from "@/lib/ca/types";
 import { EmitterCanvas } from "./emitter/EmitterCanvas";
 import GyroControls from "./gyro/GyroControls";
 
@@ -696,6 +696,7 @@ export function CanvasPreview() {
         if (anim && anim.enabled) return true;
         if (l.type === 'video') return true;
         if (l.type === 'emitter') return true;
+        if (l.type === 'replicator' && ((l as any).instanceDelay ?? 0) > 0) return true;
         if (l.children?.length) {
           if (check(l.children)) return true;
         }
@@ -1510,6 +1511,80 @@ export function CanvasPreview() {
             })}
           >
             {renderChildren(l, nextUseYUp)}
+          </div>
+        </LayerContextMenu>
+      );
+    }
+    if (l.type === "replicator") {
+      const replicator = l as any;
+      const instanceCount = replicator.instanceCount ?? 1;
+      const instanceTranslation = replicator.instanceTranslation ?? { x: 0, y: 0, z: 0 };
+      const instanceRotation = replicator.instanceRotation ?? 0;
+      const instanceDelay = replicator.instanceDelay ?? 0;
+      const replicatorFlipped = (replicator.geometryFlipped ?? 0) === 1;
+
+      const style: React.CSSProperties = {
+        ...common,
+        ...bgStyleFor(l),
+      };
+
+      return (
+        <LayerContextMenu key={l.id} layer={l} siblings={siblings}>
+          <div
+            style={style}
+            onMouseDown={isWrappedContent ? undefined : (e) => startDrag(l, e, containerH, useYUp)}
+            onTouchStart={isWrappedContent ? undefined : ((e) => {
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                startDrag(l, touchToMouseLike(e.touches[0]), containerH, useYUp);
+              }
+            })}
+          >
+            {Array.from({ length: instanceCount }, (_, i) => {
+              const translateX = instanceTranslation.x * i;
+              const translateY = replicatorFlipped ? (instanceTranslation.y * i) : -(instanceTranslation.y * i);
+              const translateZ = instanceTranslation.z * i;
+              const rotationZ = instanceRotation * i;
+              
+              const shouldShow = instanceDelay === 0 || timeSec >= i * instanceDelay;
+              
+              const birthTime = i * instanceDelay;
+              const instanceTime = Math.max(0, timeSec - birthTime);
+              
+              const animatedChildren = l.children ? JSON.parse(JSON.stringify(l.children)) as AnyLayer[] : [];
+              if (shouldShow) {
+                const walkAndAnimate = (arr: AnyLayer[]) => {
+                  for (const child of arr) {
+                    evalLayerAnimation(child, instanceTime);
+                    if (child.children?.length) {
+                      walkAndAnimate(child.children);
+                    }
+                  }
+                };
+                walkAndAnimate(animatedChildren);
+              }
+
+              return (
+                <div
+                  key={`instance-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    width: '100%',
+                    height: '100%',
+                    transform: `translate3d(${translateX}px, ${translateY}px, ${translateZ}px) rotate(${rotationZ}deg)`,
+                    transformOrigin: `${a.x * 100}% ${transformOriginY}%`,
+                    pointerEvents: i === 0 ? undefined : 'none',
+                    display: shouldShow ? undefined : 'none', 
+                  }}
+                >
+                  {animatedChildren.map((c) => {
+                    return renderLayer(c, l.size.h, nextUseYUp, animatedChildren, assets, i > 0);
+                  })}
+                </div>
+              );
+            })}
           </div>
         </LayerContextMenu>
       );

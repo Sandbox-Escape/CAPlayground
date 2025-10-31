@@ -1,5 +1,5 @@
 import { CAEmitterCell } from '@/components/editor/emitter/emitter';
-import { AnyLayer, CAProject, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations, EmitterLayer, LayerBase, TransformLayer } from './types';
+import { AnyLayer, CAProject, TextLayer, VideoLayer, CAStateOverrides, CAStateTransitions, GyroParallaxDictionary, KeyPath, Animations, EmitterLayer, LayerBase, TransformLayer, ReplicatorLayer } from './types';
 
 const CAML_NS = 'http://www.apple.com/CoreAnimation/1.0';
 
@@ -547,6 +547,47 @@ function parseCATransformLayer(el: Element): AnyLayer {
   } as AnyLayer;
 }
 
+function parseCAReplicatorLayer(el: Element): AnyLayer {
+  const base = parseLayerBase(el);
+  const children = parseSublayers(el);
+  
+  const instanceCount = parseNumericAttr(el, 'instanceCount') || 1;
+  const instanceDelay = parseNumericAttr(el, 'instanceDelay') || 0;
+  
+  // Parse instanceTransform attribute
+  const instanceTransformAttr = attr(el, 'instanceTransform');
+  let instanceTranslation = { x: 0, y: 0, z: 0 };
+  let instanceRotation = 0;
+  
+  if (instanceTransformAttr) {
+    // Parse translate(x, y, z)
+    const translateMatch = instanceTransformAttr.match(/translate\s*\(\s*([^,)]+)\s*,\s*([^,)]+)\s*,\s*([^,)]+)\s*\)/);
+    if (translateMatch) {
+      instanceTranslation = {
+        x: Number(translateMatch[1]) || 0,
+        y: Number(translateMatch[2]) || 0,
+        z: Number(translateMatch[3]) || 0,
+      };
+    }
+    
+    // Parse rotate(deg)
+    const rotateMatch = instanceTransformAttr.match(/rotate\s*\(\s*([^)]+)deg\s*\)/);
+    if (rotateMatch) {
+      instanceRotation = Number(rotateMatch[1]) || 0;
+    }
+  }
+  
+  return {
+    ...base,
+    type: 'replicator',
+    instanceCount,
+    instanceTranslation,
+    instanceRotation,
+    instanceDelay,
+    children,
+  } as AnyLayer;
+}
+
 function parseSublayers(el: Element): AnyLayer[] {
   const sublayersEl = directChildByTagNS(el, 'sublayers');
   const children = [];
@@ -557,6 +598,7 @@ function parseSublayers(el: Element): AnyLayer[] {
       else if (n.localName === 'CAGradientLayer') children.push(parseCAGradientLayer(n));
       else if (n.localName === 'CAEmitterLayer') children.push(parseCAEmitterLayer(n));
       else if (n.localName === 'CATransformLayer') children.push(parseCATransformLayer(n));
+      else if (n.localName === 'CAReplicatorLayer') children.push(parseCAReplicatorLayer(n));
     }
   }
   return children;
@@ -845,6 +887,7 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     gradient: 'CAGradientLayer',
     emitter: 'CAEmitterLayer',
     transform: 'CATransformLayer',
+    replicator: 'CAReplicatorLayer',
     default: 'CALayer',
   }
 
@@ -1060,6 +1103,37 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     const typeEl = doc.createElementNS(CAML_NS, 'type');
     typeEl.setAttribute('value', gradLayer.gradientType || 'axial');
     el.appendChild(typeEl);
+  }
+
+  if (layer.type === 'replicator') {
+    const replicatorLayer = layer as ReplicatorLayer;
+    
+    // instanceColor must be set to white (1 1 1) for sublayer colors to show through
+    setAttr(el, 'instanceColor', '1 1 1');
+    
+    // Set instance count (default 1)
+    setAttr(el, 'instanceCount', replicatorLayer.instanceCount ?? 1);
+    
+    // Set instance delay (default 0)
+    if (typeof replicatorLayer.instanceDelay === 'number') {
+      setAttr(el, 'instanceDelay', replicatorLayer.instanceDelay);
+    }
+    
+    // Build instanceTransform string
+    const parts: string[] = [];
+    const trans = replicatorLayer.instanceTranslation;
+    if (trans && (trans.x !== 0 || trans.y !== 0 || trans.z !== 0)) {
+      parts.push(`translate(${trans.x}, ${trans.y}, ${trans.z})`);
+    }
+    
+    const rot = replicatorLayer.instanceRotation;
+    if (typeof rot === 'number' && rot !== 0) {
+      parts.push(`rotate(${rot}deg)`);
+    }
+    
+    if (parts.length > 0) {
+      setAttr(el, 'instanceTransform', parts.join(' '));
+    }
   }
 
   if (wallpaperParallaxGroupsInput && wallpaperParallaxGroupsInput.length > 0) {

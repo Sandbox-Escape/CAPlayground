@@ -23,6 +23,7 @@ import { VideoTab } from "./tabs/VideoTab";
 import { AnimationsTab } from "./tabs/AnimationsTab";
 import { GyroTab } from "./tabs/GyroTab";
 import { EmitterTab } from "./tabs/EmitterTab";
+import { ReplicatorTab } from "./tabs/ReplicatorTab";
 
 export function Inspector() {
   const { doc, setDoc, updateLayer, updateLayerTransient, replaceImageForLayer, addEmitterCellImage, isAnimationPlaying, animatedLayers, selectLayer } = useEditor();
@@ -143,6 +144,13 @@ export function Inspector() {
         { id: 'emitter' as TabId, icon: Cog, label: 'Emitter' },
       ]
     }
+    if (selected?.type === 'replicator') {
+      baseTabs = [
+        { id: 'geometry' as TabId, icon: Box, label: 'Geometry' },
+        { id: 'compositing' as TabId, icon: Layers, label: 'Compositing' },
+        { id: 'replicator' as TabId, icon: Cog, label: 'Replicator' },
+      ]
+    }
     return baseTabs;
   }, [selected?.type, doc?.meta.gyroEnabled]);
 
@@ -153,13 +161,15 @@ export function Inspector() {
       setActiveTab('gradient');
     } else if (selected?.type === 'image' && (['text', 'gradient', 'video', 'emitter', 'gyro'].includes(activeTab))) {
       setActiveTab('image');
-    } else if (selected?.type === 'video' && (['text', 'gradient', 'image', 'emitter', 'gyro'].includes(activeTab))) {
+    } else if (selected?.type === 'video' && (['text', 'gradient', 'image', 'emitter', 'replicator', 'gyro'].includes(activeTab))) {
       setActiveTab('video');
-    } else if (!['text','emitter', 'gradient', 'image', 'video', 'transform'].includes(selected?.type) && ['text', 'gradient', 'image', 'video', 'emitter', 'gyro'].includes(activeTab)) {
+    } else if (!['text','emitter', 'replicator', 'gradient', 'image', 'video', 'transform'].includes(selected?.type) && ['text', 'gradient', 'image', 'video', 'emitter', 'replicator', 'gyro'].includes(activeTab)) {
       setActiveTab('geometry');
-    } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'gyro'].includes(activeTab))) {
+    } else if (selected?.type === 'emitter' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'replicator', 'gyro'].includes(activeTab))) {
       setActiveTab('emitter');
-    } else if (selected?.type === 'transform' && (['animations', 'text', 'gradient', 'image', 'video', 'emitter'].includes(activeTab))) {
+    } else if (selected?.type === 'replicator' && (['animations', 'text', 'gradient', 'image', 'video', 'content', 'emitter', 'gyro'].includes(activeTab))) {
+      setActiveTab('replicator');
+    } else if (selected?.type === 'transform' && (['animations', 'text', 'gradient', 'image', 'video', 'emitter', 'replicator'].includes(activeTab))) {
       setActiveTab('gyro');
     }
   }, [selected?.type, activeTab]);
@@ -388,6 +398,10 @@ export function Inspector() {
               addEmitterCellImage={addEmitterCellImage}
               assets={current?.assets}
             />
+          )}
+
+          {activeTab === 'replicator' && selected.type === "replicator" && (
+            <ReplicatorTab {...tabProps} />
           )}
 
           {activeTab === 'animations' && (

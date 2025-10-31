@@ -24,6 +24,7 @@ export function LayersPanel() {
     updateLayer,
     addEmitterLayer,
     addTransformLayer,
+    addReplicatorLayer,
     hiddenLayerIds,
     toggleLayerVisibility,
   } = useEditor();
@@ -332,6 +333,7 @@ export function LayersPanel() {
               <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>Image Layer…</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => videoInputRef.current?.click()}>Video Layer…</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => addEmitterLayer()}>Emitter Layer</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => addReplicatorLayer()}>Replicator Layer</DropdownMenuItem>
               {isGyro && (
                 <DropdownMenuItem onSelect={() => addTransformLayer()}>Transform Layer</DropdownMenuItem>
               )}
