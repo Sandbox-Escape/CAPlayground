@@ -84,6 +84,7 @@ export function Inspector() {
       else if (kp === 'bounds.size.height' && typeof v === 'number') eff.size.h = v;
       else if (kp === 'transform.rotation.z' && typeof v === 'number') (eff as any).rotation = v as number;
       else if (kp === 'opacity' && typeof v === 'number') (eff as any).opacity = v as number;
+      else if (kp === 'cornerradius' && typeof v === 'number') (eff as any).cornerRadius = v as number;
     }
     return eff;
   })();
