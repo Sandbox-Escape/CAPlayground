@@ -85,32 +85,29 @@ export function CompositingTab({
           </p>
         </div>
       </div>
-      
-      {selected.type === "shape" && (
-        <div className="space-y-1">
-          <Label htmlFor="radius">Corner Radius</Label>
-          <Input
-            id="radius"
-            type="number"
-            step="1"
-            value={getBuf('cornerRadius', fmt0((selected as any).cornerRadius ?? (selected as any).radius))}
-            onChange={(e) => {
-              setBuf('cornerRadius', e.target.value);
-              const v = e.target.value.trim();
-              if (v === "") return;
-              const num = Math.round(Number(v));
-              if (Number.isFinite(num)) updateLayerTransient(selected.id, { cornerRadius: num as any } as any);
-            }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); e.preventDefault(); } }}
-            onBlur={(e) => {
-              const v = e.target.value.trim();
-              const num = v === "" ? 0 : Math.round(Number(v));
-              updateLayer(selected.id, { cornerRadius: num as any } as any);
-              clearBuf('cornerRadius');
-            }}
-          />
-        </div>
-      )}
+      <div className="space-y-1">
+        <Label htmlFor="radius">Corner Radius</Label>
+        <Input
+          id="radius"
+          type="number"
+          step="1"
+          value={getBuf('cornerRadius', fmt0((selected as any).cornerRadius ?? (selected as any).radius))}
+          onChange={(e) => {
+            setBuf('cornerRadius', e.target.value);
+            const v = e.target.value.trim();
+            if (v === "") return;
+            const num = Math.round(Number(v));
+            if (Number.isFinite(num)) updateLayerTransient(selected.id, { cornerRadius: num as any } as any);
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); e.preventDefault(); } }}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            const num = v === "" ? 0 : Math.round(Number(v));
+            updateLayer(selected.id, { cornerRadius: num as any } as any);
+            clearBuf('cornerRadius');
+          }}
+        />
+      </div>
 
       <div className="space-y-1 col-span-2">
         <Label>Clip contents</Label>
