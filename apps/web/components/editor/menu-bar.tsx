@@ -625,7 +625,7 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
                           Star the repo
                         </a>
                         <a
-                          href="https://www.youtube.com/watch?v=ZmZpFaGaRIM"
+                          href="https://www.youtube.com/watch?v=nSBQIwAaAEc"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-2 rounded-md border px-3 py-2 hover:bg-muted"

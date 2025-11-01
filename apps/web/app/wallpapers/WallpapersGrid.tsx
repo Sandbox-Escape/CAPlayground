@@ -379,7 +379,7 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                     className="w-full"
                     onClick={(e) => {
                       e.stopPropagation()
-                      window.open('https://www.youtube.com/watch?v=ZmZpFaGaRIM', '_blank')
+                      window.open('https://www.youtube.com/watch?v=nSBQIwAaAEc', '_blank')
                     }}
                   >
                     <Youtube className="h-4 w-4 mr-2" />
