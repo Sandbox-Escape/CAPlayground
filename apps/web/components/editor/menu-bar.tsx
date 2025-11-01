@@ -20,7 +20,7 @@ import { useLocalStorage } from "@/hooks/use-local-storage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useEffect, useState, JSX } from "react";
+import { useEffect, useState, useMemo, JSX } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import JSZip from "jszip";
 import { getProject, updateProject, deleteProject, listFiles, isUsingOPFS } from "@/lib/storage";
@@ -61,6 +61,17 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
   const [showBackground, setShowBackground] = useLocalStorage<boolean>("caplay_preview_show_background", true);
   const [exportView, setExportView] = useState<'select'|'success'>("select");
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
+
+  const starMessage = useMemo(() => {
+    const messages = [
+      "Star this repo, make my day,\nIt helps the app in every way! 🌟",
+      "A single star can light the way,\nSupport the code I've built today! 🚀",
+      "Drop a star, don't walk away,\nIt keeps this project here to stay! 💪",
+      "Give a star, don't delay,\nYou'll make my coder's day! 💫",
+      "Star the repo, join the crew,\nIt means a lot, from me to you! 🤝"
+    ];
+    return messages[Math.floor(Math.random() * messages.length)];
+  }, [exportView]);
 
   useEffect(() => {
     if (doc?.meta.name) setName(doc.meta.name);
@@ -613,7 +624,7 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
                   <div className="w-1/2 px-0">
                     <div className="py-6 flex flex-col items-center text-center gap-3">
                       <div className="text-2xl font-semibold">Thank you for using CAPlayground!</div>
-                      <div className="text-sm text-muted-foreground">PLEASE STAR THE GITHUB REPO (You'll make my day)</div>
+                      <div className="text-sm text-muted-foreground whitespace-pre-line">{starMessage}</div>
                       <div className="flex flex-col sm:flex-row gap-2">
                         <a
                           href="https://github.com/CAPlayground/CAPlayground"
