@@ -246,6 +246,7 @@ function parseLayerBase(el: Element): LayerBase {
   const bounds = parseNumberList(attr(el, 'bounds'));
   const position = parseNumberList(attr(el, 'position'));
   const anchorPt = parseNumberList(attr(el, 'anchorPoint'));
+  const cornerRadius = parseNumericAttr(el, 'cornerRadius') || 0;
 
   const rotationZ = parseNumericAttr(el, 'transform.rotation.z');
   const rotationX = parseNumericAttr(el, 'transform.rotation.x');
@@ -257,6 +258,7 @@ function parseLayerBase(el: Element): LayerBase {
     position: { x: position[0] ?? 0, y: position[1] ?? 0 },
     size: { w: bounds[2] ?? 0, h: bounds[3] ?? 0 },
     opacity: parseNumericAttr(el, 'opacity') || 1,
+    cornerRadius,
     rotation: radToDeg(rotationZ || 0),
     rotationX: radToDeg(rotationX || 0),
     rotationY: radToDeg(rotationY || 0),
@@ -625,7 +627,6 @@ function parseCALayer(el: Element): AnyLayer {
     const opNum = typeof op === 'string' ? Number(op) : NaN;
     if (Number.isFinite(opNum)) backgroundOpacity = opNum;
   }
-  const cornerRadius = attr(el, 'cornerRadius') ? Number(attr(el, 'cornerRadius')) : undefined;
   const borderColorRaw = attr(el, 'borderColor');
   const borderColor = floatsToHexColor(borderColorRaw) || borderColorRaw || undefined;
   const borderWidth = attr(el, 'borderWidth') ? Number(attr(el, 'borderWidth')) : undefined;
@@ -647,7 +648,6 @@ function parseCALayer(el: Element): AnyLayer {
     ...layerBase,
     backgroundColor,
     backgroundOpacity,
-    cornerRadius,
     borderColor,
     borderWidth,
     src: imageSrc,
@@ -702,60 +702,60 @@ export function serializeCAML(
     state.setAttribute('name', stateName);
     const elements = doc.createElementNS(CAML_NS, 'elements');
 
-  // state animations wont work unless every state overrides exists in every state. its really stupid and this next section of code should fix that problem when exporting from caplayground
-  // - retronbv
+    // state animations wont work unless every state overrides exists in every state. its really stupid and this next section of code should fix that problem when exporting from caplayground
+    // - retronbv
 
-  stateNames.forEach((stateName) => {
-    let ovs = (stateOverridesInput || {})[stateName] || [];
-    for (let override of ovs) {
-      if (!layerIndex[override.targetId]) continue;
-      let defaultVal: any;
-      switch (override.keyPath) {
-        case "position.x":
-          defaultVal = layerIndex[override.targetId].position.x;
-          break;
-        case "position.y":
-          defaultVal = layerIndex[override.targetId].position.y;
-          break;
-        case "bounds.size.width":
-          defaultVal = layerIndex[override.targetId].size.w;
-          break;
-        case "bounds.size.height":
-          defaultVal = layerIndex[override.targetId].size.h;
-          break;
-        case "transform.rotation.z":
-          defaultVal = layerIndex[override.targetId].rotation;
-          break;
-        case "transform.rotation.x":
-          defaultVal = (layerIndex as any)[override.targetId]?.rotationX;
-          break;
-        case "transform.rotation.y":
-          defaultVal = (layerIndex as any)[override.targetId]?.rotationY;
-          break;
-        case "opacity":
-          defaultVal = layerIndex[override.targetId].opacity;
-          break;
-        case "cornerRadius":
-          defaultVal = (layerIndex as any)[override.targetId]?.cornerRadius;
-          break;
-      }
-      stateNames.forEach((checkState) => {
-        let checkOverrides = (stateOverridesInput || {})[checkState] || [];
-        let filtered = checkOverrides.filter(
-          (o) =>
-            o.targetId == override.targetId && o.keyPath == override.keyPath
-        );
-        if (filtered.length == 0) {
-          checkOverrides.push({
-            targetId: override.targetId,
-            keyPath: override.keyPath,
-            value: defaultVal,
-          });
+    stateNames.forEach((stateName) => {
+      let ovs = (stateOverridesInput || {})[stateName] || [];
+      for (let override of ovs) {
+        if (!layerIndex[override.targetId]) continue;
+        let defaultVal: any;
+        switch (override.keyPath) {
+          case "position.x":
+            defaultVal = layerIndex[override.targetId].position.x;
+            break;
+          case "position.y":
+            defaultVal = layerIndex[override.targetId].position.y;
+            break;
+          case "bounds.size.width":
+            defaultVal = layerIndex[override.targetId].size.w;
+            break;
+          case "bounds.size.height":
+            defaultVal = layerIndex[override.targetId].size.h;
+            break;
+          case "transform.rotation.z":
+            defaultVal = layerIndex[override.targetId].rotation;
+            break;
+          case "transform.rotation.x":
+            defaultVal = (layerIndex as any)[override.targetId]?.rotationX;
+            break;
+          case "transform.rotation.y":
+            defaultVal = (layerIndex as any)[override.targetId]?.rotationY;
+            break;
+          case "opacity":
+            defaultVal = layerIndex[override.targetId].opacity;
+            break;
+          case "cornerRadius":
+            defaultVal = (layerIndex as any)[override.targetId]?.cornerRadius;
+            break;
         }
-        (stateOverridesInput || {})[checkState] = checkOverrides;
-      });
-    }
-  });
+        stateNames.forEach((checkState) => {
+          let checkOverrides = (stateOverridesInput || {})[checkState] || [];
+          let filtered = checkOverrides.filter(
+            (o) =>
+              o.targetId == override.targetId && o.keyPath == override.keyPath
+          );
+          if (filtered.length == 0) {
+            checkOverrides.push({
+              targetId: override.targetId,
+              keyPath: override.keyPath,
+              value: defaultVal,
+            });
+          }
+          (stateOverridesInput || {})[checkState] = checkOverrides;
+        });
+      }
+    });
 
     const ovs = ((stateOverridesInput || {})[stateName] || []).filter((ov) => !!layerIndex[ov.targetId]);
     for (const ov of ovs) {
