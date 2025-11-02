@@ -104,11 +104,18 @@ const ProjectThumb = React.memo(function ProjectThumb({
     const top = useYUp ? (containerH - (l.position.y + (1 - a.y) * l.size.h)) : (l.position.y - a.y * l.size.h);
     return { left, top, a };
   };
-  const renderChildren = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
+  const renderChildren = (l: AnyLayer, containerH: number = h, useYUp: boolean = true, parentPath: string = ''): React.ReactNode => {
     if (!Array.isArray(l.children)) return null;
-    return l.children.map((c: AnyLayer) => renderLayer(c, containerH, useYUp));
+    return l.children.map((c: AnyLayer, idx: number) => {
+      const childPath = `${parentPath}-child-${idx}`;
+      return (
+        <React.Fragment key={`${(c as any).id ?? 'child'}-${childPath}`}>
+          {renderLayer(c, containerH, useYUp, childPath)}
+        </React.Fragment>
+      );
+    });
   };
-  const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true): React.ReactNode => {
+  const renderLayer = (l: AnyLayer, containerH: number = h, useYUp: boolean = true, layerPath: string = ''): React.ReactNode => {
     const { left, top, a } = computeCssLT(l, containerH, useYUp);
     const common: React.CSSProperties = {
       position: 'absolute',
@@ -125,14 +132,14 @@ const ProjectThumb = React.memo(function ProjectThumb({
     };
     if (l.type === 'text') {
       const t = l as any;
-      return <div key={l.id} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>
+      return <div key={`${l.id}-${layerPath}`} style={{ ...common, color: t.color, fontSize: t.fontSize, textAlign: t.align ?? 'left' }}>
           {t.text}
-          {renderChildren(l, l.size.h, useYUp)}
+          {renderChildren(l, l.size.h, useYUp, layerPath)}
         </div>;
     }
     if (l.type === 'image') {
       const im = l as any;
-      return <img key={l.id} src={im.src} alt={im.name} draggable={false} style={{ ...common, objectFit: 'fill' as const, maxWidth: 'none', maxHeight: 'none' }} />;
+      return <img key={`${l.id}-${layerPath}`} src={im.src} alt={im.name} draggable={false} style={{ ...common, objectFit: 'fill' as const, maxWidth: 'none', maxHeight: 'none' }} />;
     }
     if (l.type === 'gradient') {
       const grad = l as any;
@@ -178,8 +185,8 @@ const ProjectThumb = React.memo(function ProjectThumb({
         background = `conic-gradient(from ${angle}rad at ${startX}% ${100 - startY}%, ${colors})`;
       }
       
-      return <div key={l.id} style={{ ...common, background }}>
-        {renderChildren(l, l.size.h, useYUp)}
+      return <div key={`${l.id}-${layerPath}`} style={{ ...common, background }}>
+        {renderChildren(l, l.size.h, useYUp, layerPath)}
       </div>;
     }
     if (l.type === 'shape') {
@@ -193,15 +200,15 @@ const ProjectThumb = React.memo(function ProjectThumb({
       if (s.backgroundColor) {
         style.backgroundColor = s.backgroundColor;
       }
-      return <div key={l.id} style={style}>
-        {renderChildren(l, l.size.h, useYUp)}
+      return <div key={`${l.id}-${layerPath}`} style={style}>
+        {renderChildren(l, l.size.h, useYUp, layerPath)}
       </div>;
     }
     if (l.type === 'basic' || l.type === 'emitter' || l.type === 'transform') {
       const g = l as any;
       return (
-        <div key={g.id} style={{ ...common, background: g.backgroundColor }}>
-          {renderChildren(l, l.size.h, useYUp)}
+        <div key={`${g.id}-${layerPath}`} style={{ ...common, background: g.backgroundColor }}>
+          {renderChildren(l, l.size.h, useYUp, layerPath)}
         </div>
       );
     }
@@ -223,7 +230,14 @@ const ProjectThumb = React.memo(function ProjectThumb({
           overflow: 'hidden',
         }}
       >
-        {((doc?.layers) || []).map((l) => renderLayer(l, h, true))}
+        {((doc?.layers) || []).map((l, i) => {
+          const rootPath = `root-${i}`;
+          return (
+            <React.Fragment key={`${(l as any).id ?? 'layer'}-${rootPath}`}>
+              {renderLayer(l, h, true, rootPath)}
+            </React.Fragment>
+          );
+        })}
       </div>
     </div>
   );
