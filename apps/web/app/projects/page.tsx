@@ -1401,8 +1401,15 @@ function ProjectsContent() {
       router.push(`/editor/${id}`);
     } catch (err) {
       console.error('Tendies import failed', err);
-      setMessageDialogTitle('Import Error');
-      setMessageDialogContent(`Failed to import tendies file: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      
+      if (errorMessage.includes('MERCURY_POSTER_NOT_SUPPORTED')) {
+        setMessageDialogTitle('Mercury Poster Not Supported'); // mercury wallpapers are stored in system files, so they can't be imported into CAP
+        setMessageDialogContent('Mercury Poster wallpapers cannot be imported into CAPlayground. These wallpapers store their assets in system files that cannot be modified or extracted.');
+      } else {
+        setMessageDialogTitle('Import Error');
+        setMessageDialogContent(`Failed to import tendies file: ${errorMessage}`);
+      }
       setMessageDialogOpen(true);
     } finally {
       if (importTendiesInputRef.current) importTendiesInputRef.current.value = '';
