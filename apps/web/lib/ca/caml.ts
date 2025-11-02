@@ -122,6 +122,7 @@ export function parseWallpaperParallaxGroups(xml: string): GyroParallaxDictionar
       });
     }
   } catch {
+    return [];
   }
   return result;
 }
@@ -682,7 +683,12 @@ export function serializeCAML(
     children: [root],
   }
 
-  const rootEl = serializeLayer(doc, isWallpaperCA ? root :capRootLayer, project, wallpaperParallaxGroupsInput);
+  const rootEl = serializeLayer(
+    doc,
+    isWallpaperCA ? root : capRootLayer,
+    project,
+    isWallpaperCA ? wallpaperParallaxGroupsInput : undefined,
+  );
 
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
@@ -1135,7 +1141,7 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
       setAttr(el, 'instanceTransform', parts.join(' '));
     }
   }
-  if (layer.name === 'Root Layer') {
+  if (wallpaperParallaxGroupsInput) {
     const style = doc.createElementNS(CAML_NS, 'style');
     
     const wallpaperBackgroundAssetNames = doc.createElementNS(CAML_NS, 'wallpaperBackgroundAssetNames');
@@ -1148,52 +1154,50 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     
     const wallpaperParallaxGroups = doc.createElementNS(CAML_NS, 'wallpaperParallaxGroups');
     wallpaperParallaxGroups.setAttribute('type', 'NSArray');
-    if (wallpaperParallaxGroupsInput) {
-      for (const dict of wallpaperParallaxGroupsInput) {
-        const nsDict = doc.createElementNS(CAML_NS, 'NSDictionary');
-        
-        const axis = doc.createElementNS(CAML_NS, 'axis');
-        axis.setAttribute('type', 'string');
-        axis.setAttribute('value', dict.axis);
-        nsDict.appendChild(axis);
-        
-        const image = doc.createElementNS(CAML_NS, 'image');
-        image.setAttribute('type', 'string');
-        image.setAttribute('value', dict.image);
-        nsDict.appendChild(image);
-        
-        const keyPath = doc.createElementNS(CAML_NS, 'keyPath');
-        keyPath.setAttribute('type', 'string');
-        keyPath.setAttribute('value', dict.keyPath);
-        nsDict.appendChild(keyPath);
-        
-        const layerName = doc.createElementNS(CAML_NS, 'layerName');
-        layerName.setAttribute('type', 'string');
-        layerName.setAttribute('value', dict.layerName);
-        nsDict.appendChild(layerName);
-        
-        const mapMaxTo = doc.createElementNS(CAML_NS, 'mapMaxTo');
-        mapMaxTo.setAttribute('type', 'integer');
-        mapMaxTo.setAttribute('value', String(dict.mapMaxTo));
-        nsDict.appendChild(mapMaxTo);
-        
-        const mapMinTo = doc.createElementNS(CAML_NS, 'mapMinTo');
-        mapMinTo.setAttribute('type', 'integer');
-        mapMinTo.setAttribute('value', String(dict.mapMinTo));
-        nsDict.appendChild(mapMinTo);
-        
-        const title = doc.createElementNS(CAML_NS, 'title');
-        title.setAttribute('type', 'string');
-        title.setAttribute('value', dict.title);
-        nsDict.appendChild(title);
-        
-        const view = doc.createElementNS(CAML_NS, 'view');
-        view.setAttribute('type', 'string');
-        view.setAttribute('value', dict.view);
-        nsDict.appendChild(view);
-        
-        wallpaperParallaxGroups.appendChild(nsDict);
-      }
+    for (const dict of wallpaperParallaxGroupsInput) {
+      const nsDict = doc.createElementNS(CAML_NS, 'NSDictionary');
+      
+      const axis = doc.createElementNS(CAML_NS, 'axis');
+      axis.setAttribute('type', 'string');
+      axis.setAttribute('value', dict.axis);
+      nsDict.appendChild(axis);
+      
+      const image = doc.createElementNS(CAML_NS, 'image');
+      image.setAttribute('type', 'string');
+      image.setAttribute('value', dict.image);
+      nsDict.appendChild(image);
+      
+      const keyPath = doc.createElementNS(CAML_NS, 'keyPath');
+      keyPath.setAttribute('type', 'string');
+      keyPath.setAttribute('value', dict.keyPath);
+      nsDict.appendChild(keyPath);
+      
+      const layerName = doc.createElementNS(CAML_NS, 'layerName');
+      layerName.setAttribute('type', 'string');
+      layerName.setAttribute('value', dict.layerName);
+      nsDict.appendChild(layerName);
+      
+      const mapMaxTo = doc.createElementNS(CAML_NS, 'mapMaxTo');
+      mapMaxTo.setAttribute('type', 'integer');
+      mapMaxTo.setAttribute('value', String(dict.mapMaxTo));
+      nsDict.appendChild(mapMaxTo);
+      
+      const mapMinTo = doc.createElementNS(CAML_NS, 'mapMinTo');
+      mapMinTo.setAttribute('type', 'integer');
+      mapMinTo.setAttribute('value', String(dict.mapMinTo));
+      nsDict.appendChild(mapMinTo);
+      
+      const title = doc.createElementNS(CAML_NS, 'title');
+      title.setAttribute('type', 'string');
+      title.setAttribute('value', dict.title);
+      nsDict.appendChild(title);
+      
+      const view = doc.createElementNS(CAML_NS, 'view');
+      view.setAttribute('type', 'string');
+      view.setAttribute('value', dict.view);
+      nsDict.appendChild(view);
+      
+      wallpaperParallaxGroups.appendChild(nsDict);
     }
     
     style.appendChild(wallpaperParallaxGroups);
