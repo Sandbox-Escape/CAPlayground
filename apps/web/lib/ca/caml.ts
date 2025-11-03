@@ -100,11 +100,13 @@ export function parseWallpaperParallaxGroups(xml: string): GyroParallaxDictionar
     if (!wallpaperParallaxGroups) return result;
     
     const dicts = Array.from(wallpaperParallaxGroups.getElementsByTagNameNS(CAML_NS, 'NSDictionary'));
+    const layerNames = Array.from(doc.querySelectorAll('[name]:not([name=""])')).map((el) => el.getAttribute('name'));
     for (const dict of dicts) {
+      const layerName = dict.getElementsByTagNameNS(CAML_NS, 'layerName')[0]?.getAttribute('value') || '';
+      if (!layerNames.includes(layerName)) continue;
       const axis = dict.getElementsByTagNameNS(CAML_NS, 'axis')[0]?.getAttribute('value') || 'x';
       const image = dict.getElementsByTagNameNS(CAML_NS, 'image')[0]?.getAttribute('value') || 'null';
       const keyPath = dict.getElementsByTagNameNS(CAML_NS, 'keyPath')[0]?.getAttribute('value') || 'position.x';
-      const layerName = dict.getElementsByTagNameNS(CAML_NS, 'layerName')[0]?.getAttribute('value') || '';
       const mapMaxTo = Number(dict.getElementsByTagNameNS(CAML_NS, 'mapMaxTo')[0]?.getAttribute('value') || '0');
       const mapMinTo = Number(dict.getElementsByTagNameNS(CAML_NS, 'mapMinTo')[0]?.getAttribute('value') || '0');
       const title = dict.getElementsByTagNameNS(CAML_NS, 'title')[0]?.getAttribute('value') || '';
@@ -122,6 +124,7 @@ export function parseWallpaperParallaxGroups(xml: string): GyroParallaxDictionar
       });
     }
   } catch {
+    return [];
   }
   return result;
 }
@@ -673,7 +676,7 @@ export function serializeCAML(
 ): string {
   const doc = document.implementation.createDocument(CAML_NS, 'caml', null);
   const caml = doc.documentElement;
-  const isWallpaperCA = root.children?.some((c) => c.name === 'BACKGROUND' || c.name === 'WALLPAPER');
+  const isWallpaperCA = root.children?.some((c) => c.name === 'BACKGROUND' || c.name === 'FLOATING');
   const capRootLayer: AnyLayer = {
     ...root,
     id: '__capRootLayer__',
@@ -682,7 +685,12 @@ export function serializeCAML(
     children: [root],
   }
 
-  const rootEl = serializeLayer(doc, isWallpaperCA ? root :capRootLayer, project, wallpaperParallaxGroupsInput);
+  const rootEl = serializeLayer(
+    doc,
+    isWallpaperCA ? root : capRootLayer,
+    project,
+    isWallpaperCA ? wallpaperParallaxGroupsInput : undefined,
+  );
 
   const scriptComponents = doc.createElementNS(CAML_NS, 'scriptComponents');
   const statesEl = doc.createElementNS(CAML_NS, 'states');
@@ -1135,8 +1143,7 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
       setAttr(el, 'instanceTransform', parts.join(' '));
     }
   }
-
-  if (wallpaperParallaxGroupsInput && wallpaperParallaxGroupsInput.length > 0) {
+  if (wallpaperParallaxGroupsInput) {
     const style = doc.createElementNS(CAML_NS, 'style');
     
     const wallpaperBackgroundAssetNames = doc.createElementNS(CAML_NS, 'wallpaperBackgroundAssetNames');
@@ -1149,7 +1156,6 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
     
     const wallpaperParallaxGroups = doc.createElementNS(CAML_NS, 'wallpaperParallaxGroups');
     wallpaperParallaxGroups.setAttribute('type', 'NSArray');
-    
     for (const dict of wallpaperParallaxGroupsInput) {
       const nsDict = doc.createElementNS(CAML_NS, 'NSDictionary');
       
