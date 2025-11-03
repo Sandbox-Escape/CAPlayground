@@ -25,3 +25,8 @@ export async function dataURLToBlob(dataURL: string): Promise<Blob> {
     return new Blob([decodeURIComponent(data)], { type: mime });
   }
 }
+
+export const normalize = (s: string) => {
+  try { s = decodeURIComponent(s); } catch {}
+  return (s || '').trim().toLowerCase();
+};

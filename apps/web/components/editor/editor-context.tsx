@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AnyLayer, CAProject, ImageLayer, LayerBase, ShapeLayer, TextLayer, VideoLayer, GyroParallaxDictionary, EmitterLayer, TransformLayer, ReplicatorLayer } from "@/lib/ca/types";
 import { serializeCAML } from "@/lib/ca/caml";
-import { getProject, listFiles, putBlobFile, putBlobFilesBatch, putTextFile } from "@/lib/storage";
+import { deleteFile, getProject, listFiles, putBlobFile, putBlobFilesBatch, putTextFile } from "@/lib/storage";
 import {
   genId,
   findById,
@@ -16,7 +16,7 @@ import {
   insertIntoSelected,
   getNextLayerName,
 } from "@/lib/editor/layer-utils";
-import { sanitizeFilename, dataURLToBlob } from "@/lib/editor/file-utils";
+import { sanitizeFilename, dataURLToBlob, normalize } from "@/lib/editor/file-utils";
 import { CAEmitterCell } from "./emitter/emitter";
 
 type CADoc = {
@@ -223,10 +223,6 @@ export function EditorProvider({
           }
           const findAssetBindings = (layers: AnyLayer[], filename: string): string[] => {
             const matches: string[] = [];
-            const normalize = (s: string) => {
-              try { s = decodeURIComponent(s); } catch {}
-              return (s || '').trim().toLowerCase();
-            };
             const fileNorm = normalize(filename);
             const walk = (arr: AnyLayer[]) => {
               for (const layer of arr) {
@@ -287,6 +283,9 @@ export function EditorProvider({
                   for (const k of bindingKeys) {
                     assets[k] = { filename, dataURL };
                   }
+                } else {
+                  const assetPath = `${caFolder}/assets/${filename}`;
+                  await deleteFile(projectId, assetPath);
                 }
               } catch {}
             }
@@ -624,6 +623,20 @@ export function EditorProvider({
           } catch (err) {
             console.error('Failed to write assets batch:', err);
           }
+        }
+        
+        const dbAssets = (await listFiles(projectId) || [])
+          ?.filter(f => f.path.includes('/assets/') && f.path.includes(caFolder));
+        for (const dbAsset of dbAssets) {
+          try {
+            const filename = dbAsset.path.split('/assets/')[1];
+            const fileNorm = normalize(filename);
+            const assetBinding = Object.values(assets).find((a) => normalize(a.filename) === fileNorm);
+            if (!assetBinding) {
+              const assetPath = `${caFolder}/assets/${filename}`;
+              await deleteFile(projectId, assetPath);
+            }
+          } catch {}
         }
       }
     } catch (e) {
