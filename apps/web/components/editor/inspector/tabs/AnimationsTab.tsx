@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Download } from "lucide-react";
 import type { InspectorTabProps } from "../types";
 import type { KeyPath } from "@/lib/ca/types";
+import { BulkAnimationInput } from "./BulkAnimationInput";
 
 interface AnimationsTabProps extends InspectorTabProps {
   animEnabled: boolean;
@@ -250,7 +252,7 @@ export function AnimationsTab({
       </div>
 
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="space-y-1">
           <Label>
             {(() => {
               const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
@@ -261,6 +263,16 @@ export function AnimationsTab({
               return 'Values (Number)';
             })()}
           </Label>
+          <div className="text-xs text-muted-foreground">
+            {(() => {
+              const kp = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
+              if (kp.startsWith('transform.rotation')) return 'Animation values in degrees for rotation.';
+              if (kp === 'position') return 'Animation values as x, y coordinates.';
+              if (kp === 'opacity') return 'Animation values as opacity percentages.';
+              if (kp === 'bounds') return 'Animation values as width, height dimensions.';
+              return 'Animation values as numbers.';
+            })()}
+          </div>
           <Button
             type="button"
             size="sm"
@@ -287,9 +299,19 @@ export function AnimationsTab({
               updateLayer(selectedBase!.id, { animations: { ...current, values } } as any);
             }}
             disabled={!animEnabled}
+            className="w-full"
           >
             + Add key value
           </Button>
+          <BulkAnimationInput
+            keyPath={((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath}
+            currentValues={((selectedBase as any)?.animations?.values || []) as any[]}
+            onValuesChange={(values) => {
+              const current = (selectedBase as any)?.animations || {};
+              updateLayer(selectedBase!.id, { animations: { ...current, values } } as any);
+            }}
+            disabled={!animEnabled}
+          />
         </div>
         <div className={`space-y-2 ${animEnabled ? '' : 'opacity-50'}`}>
           {(() => {
@@ -428,6 +450,44 @@ export function AnimationsTab({
           )}
         </div>
       </div>
+      {animEnabled && (((selectedBase as any)?.animations?.values || []) as any[]).length > 0 && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            const keyPath = ((selectedBase as any)?.animations?.keyPath ?? 'position') as KeyPath;
+            const currentValues = ((selectedBase as any)?.animations?.values || []) as any[];
+            
+            const textValues = currentValues.map(val => {
+              if (typeof val === 'number') {
+                return keyPath === 'opacity' ? Math.round(val * 100).toString() : Math.round(val).toString();
+              } else if ('x' in val) {
+                return `${Math.round(val.x)}, ${Math.round(val.y)}`;
+              } else if ('w' in val) {
+                return `${Math.round(val.w)}, ${Math.round(val.h)}`;
+              }
+              return '';
+            }).join('\n');
+
+            const blob = new Blob([textValues], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `animation-values-${keyPath}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }}
+          disabled={!animEnabled}
+          className="w-full gap-2"
+        >
+          <Download className="w-4 h-4" />
+          Export Animation Values
+        </Button>
+      )}
+
     </div>
   );
 }
