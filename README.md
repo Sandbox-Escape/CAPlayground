@@ -68,6 +68,8 @@ Read [CONTRIBUTING.md](.github/CONTRIBUTING.md)
 
 [MIT License](LICENSE)
 
+**Note:** The MIT License applies to the source code. Use of the hosted service at caplayground.pages.dev is subject to our [Terms of Service](https://caplayground.pages.dev/tos), which includes attribution requirements for shared content.
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=caplayground/caplayground&type=Date)](https://www.star-history.com/#caplayground/caplayground&Date)
