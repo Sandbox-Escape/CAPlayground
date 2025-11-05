@@ -1493,14 +1493,14 @@ export function CanvasPreview() {
         // Determine which gyro axis controls this translation
         const gyroValue = transformTranslationX.axis === 'x' ? gyroX : gyroY;
         const targetValue = mapRange(gyroValue, transformTranslationX.mapMinTo, transformTranslationX.mapMaxTo)
-        translationXDelta = targetValue;
+        translationXDelta = -targetValue;
       }
 
       if (transformTranslationY) {
         // Determine which gyro axis controls this translation
         const gyroValue = transformTranslationY.axis === 'x' ? gyroX : gyroY;
         const targetValue = mapRange(gyroValue, transformTranslationY.mapMinTo, transformTranslationY.mapMaxTo)
-        translationYDelta = targetValue;
+        translationYDelta = -targetValue;
       }
 
       let transformString = '';
