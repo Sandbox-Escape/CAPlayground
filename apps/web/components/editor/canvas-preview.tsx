@@ -1461,12 +1461,16 @@ export function CanvasPreview() {
       const radToDeg = (rad: number) => rad * (180 / Math.PI);
       const transformRotationX = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.x')[0]
       const transformRotationY = parallaxTransform?.filter(g => g.keyPath === 'transform.rotation.y')[0]
+      const transformTranslationX = parallaxTransform?.filter(g => g.keyPath === 'transform.translation.x')[0]
+      const transformTranslationY = parallaxTransform?.filter(g => g.keyPath === 'transform.translation.y')[0]
       // Calculate rotation and position values based on gyro input and configured min/max values
       // gyroY (up/down tilt) typically controls rotateX (tilt forward/backward)
       // gyroX (left/right tilt) typically controls rotateY (turn left/right)
 
       let rotationXDelta = 0;
       let rotationYDelta = 0;
+      let translationXDelta = 0;
+      let translationYDelta = 0;
 
       if (transformRotationX) {
         // Determine which gyro axis controls this rotation
@@ -1485,10 +1489,24 @@ export function CanvasPreview() {
         rotationYDelta = radToDeg(targetValue);
       }
 
+      if (transformTranslationX) {
+        // Determine which gyro axis controls this translation
+        const gyroValue = transformTranslationX.axis === 'x' ? gyroX : gyroY;
+        const targetValue = mapRange(gyroValue, transformTranslationX.mapMinTo, transformTranslationX.mapMaxTo)
+        translationXDelta = targetValue;
+      }
+
+      if (transformTranslationY) {
+        // Determine which gyro axis controls this translation
+        const gyroValue = transformTranslationY.axis === 'x' ? gyroX : gyroY;
+        const targetValue = mapRange(gyroValue, transformTranslationY.mapMinTo, transformTranslationY.mapMaxTo)
+        translationYDelta = targetValue;
+      }
+
       let transformString = '';
       const e = { ...l } as TransformLayer;
       if (useGyroControls) {
-        transformString = `rotate3d(0, 1, 0, ${(e.rotationY ?? 0) + rotationYDelta}deg) rotateX(${(e.rotationX ?? 0) + rotationXDelta}deg)`;
+        transformString = `translate3d(${translationXDelta}px, ${translationYDelta}px, 0) rotate3d(0, 1, 0, ${(e.rotationY ?? 0) + rotationYDelta}deg) rotateX(${(e.rotationX ?? 0) + rotationXDelta}deg)`;
       }
 
       const style: React.CSSProperties = {
