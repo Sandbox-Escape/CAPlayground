@@ -573,8 +573,8 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
         <div>
           <Button variant="secondary" disabled={!doc} onClick={() => { setExportView('select'); setExportOpen(true); }} className="px-3 sm:px-4">Export</Button>
           <Dialog open={exportOpen} onOpenChange={(v)=>{ setExportOpen(v); if (!v) setExportView('select'); }}>
-            <DialogContent>
-              <DialogHeader className={exportView === 'success' ? 'flex items-center justify-start' : undefined}>
+            <DialogContent className="sm:max-w-md p-4">
+              <DialogHeader className={`${exportView === 'success' ? 'flex items-center justify-start' : ''} py-2`}>
                 {exportView === 'success' ? (
                   <Button variant="ghost" className="h-8 w-auto px-2 gap-1 self-start" onClick={() => setExportView('select')}>
                     <ArrowLeft className="h-4 w-4" /> Back
@@ -589,8 +589,8 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
               <div className="relative overflow-hidden">
                 <div className="flex w-[200%] transition-transform duration-300 ease-out"
                   style={{ transform: exportView === 'select' ? 'translateX(0%)' : 'translateX(-50%)' }}>
-                  <div className="w-1/2 px-0">
-                    <div className="grid gap-2">
+                  <div className={`w-1/2 px-0 ${exportView === 'success' ? 'h-0 overflow-hidden' : ''}`}> 
+                    <div className="grid gap-1">
                       <Button
                         variant="outline"
                         onClick={async () => {
@@ -598,22 +598,22 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
                           if (ok) setExportView('success');
                         }}
                         disabled={!doc}
-                        className="w-full justify-start text-left py-10"
+                        className="w-full justify-start text-left py-10 sm:py-12 whitespace-normal break-words"
                       >
-                        <div className="flex flex-col items-start gap-0.5">
+                        <div className="flex flex-col items-start gap-0.5 w-full">
                           <span>Export .ca file</span>
-                          <span className="text-xs text-muted-foreground">Download a .zip with your floating.ca and background.ca files.</span>
+                          <span className="text-xs text-muted-foreground whitespace-normal break-words">Download a .zip with your floating.ca and background.ca files.</span>
                         </div>
                       </Button>
                       <Button
                         variant="outline"
                         onClick={() => { exportTendies(); }}
                         disabled={!doc || exportingTendies}
-                        className="w-full justify-start text-left py-10"
+                        className="w-full justify-start text-left py-10 sm:py-12 whitespace-normal break-words"
                       >
-                        <div className="flex flex-col items-start gap-0.5">
+                        <div className="flex flex-col items-start gap-0.5 w-full">
                           <span>Export Tendies file</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground whitespace-normal break-words">
                             {exportingTendies ? 'Creating tendies file...' : 'Create a tendies wallpaper file with your animation.'}
                           </span>
                         </div>
@@ -621,8 +621,8 @@ export function MenuBar({ projectId, showLeft = true, showRight = true, toggleLe
                     </div>
                   </div>
                   {/* Success panel */}
-                  <div className="w-1/2 px-0">
-                    <div className="py-6 flex flex-col items-center text-center gap-3">
+                  <div className={`w-1/2 px-0 ${exportView === 'select' ? 'h-0 overflow-hidden' : ''}`}>
+                    <div className="py-4 flex flex-col items-center text-center gap-2">
                       <div className="text-2xl font-semibold">Thank you for using CAPlayground!</div>
                       <div className="text-sm text-muted-foreground whitespace-pre-line">{starMessage}</div>
                       <div className="flex flex-col sm:flex-row gap-2">

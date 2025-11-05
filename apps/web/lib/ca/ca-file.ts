@@ -441,6 +441,14 @@ export async function unpackTendies(file: Blob): Promise<TendiesBundle> {
 
   const paths = Object.keys(zip.files).map(p => p.replace(/\\/g, '/'));
   
+  const hasMercuryPoster = paths.some(path => 
+    path.toLowerCase().includes('com.apple.mercuryposter')
+  );
+  
+  if (hasMercuryPoster) {
+    throw new Error('MERCURY_POSTER_NOT_SUPPORTED: Mercury Poster wallpapers cannot be imported as their assets are stored in system files and cannot be modified.');
+  }
+  
   const findCAPath = (pattern: 'floating' | 'background' | 'wallpaper.ca'): string | null => {
     if (pattern === 'wallpaper.ca') {
       const candidate = paths.find((p) => {
