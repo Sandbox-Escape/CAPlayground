@@ -189,6 +189,8 @@ export type KeyPath =
   | 'position'
   | 'position.x'
   | 'position.y'
+  | 'transform.translation.x'
+  | 'transform.translation.y'
   | 'transform.rotation.x'
   | 'transform.rotation.y'
   | 'transform.rotation.z'
