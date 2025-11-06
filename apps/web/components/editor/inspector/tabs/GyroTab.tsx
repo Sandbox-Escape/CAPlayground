@@ -173,6 +173,8 @@ export function GyroTab({
                   <SelectContent>
                     <SelectItem value="position.x">position.x</SelectItem>
                     <SelectItem value="position.y">position.y</SelectItem>
+                    <SelectItem value="transform.translation.x">transform.translation.x</SelectItem>
+                    <SelectItem value="transform.translation.y">transform.translation.y</SelectItem>
                     <SelectItem value="transform.rotation.x">transform.rotation.x</SelectItem>
                     <SelectItem value="transform.rotation.y">transform.rotation.y</SelectItem>
                     {/* TODO: <SelectItem value="transform.rotation.z">transform.rotation.z</SelectItem> */}
