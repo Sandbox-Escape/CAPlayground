@@ -152,6 +152,9 @@ export function parseStateOverrides(xml: string): CAStateOverrides {
           if (valueNodes && valueNodes[0]) {
             const type = valueNodes[0].getAttribute('type') || '';
             const vAttr = valueNodes[0].getAttribute('value') || '';
+            if (vAttr === "undefined") {
+              continue;
+            }
             if (/^(integer|float|real|number)$/i.test(type)) {
               const n = Number(vAttr);
               val = Number.isFinite(n) ? n : vAttr;
@@ -916,7 +919,7 @@ function serializeLayer(doc: XMLDocument, layer: AnyLayer, project?: CAProject, 
   if (gf === 0 || gf === 1) setAttr(el, 'geometryFlipped', String(gf));
   const mtb = (layer as any).masksToBounds;
   if (mtb === 0 || mtb === 1) setAttr(el, 'masksToBounds', String(mtb));
-  setAttr(el, 'opacity', layer.opacity ?? undefined);
+  setAttr(el, 'opacity', layer.opacity ?? 1);
   const rotZ = (layer as any).rotation || 0;
   const rotX = (layer as any).rotationX || 0;
   const rotY = (layer as any).rotationY || 0;
