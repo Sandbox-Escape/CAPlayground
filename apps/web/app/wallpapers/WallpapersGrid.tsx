@@ -363,7 +363,33 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                 )}
                 <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{item.description}</p>
                 <div className="flex flex-col gap-2">
+                  {isIOS ? (
+                    <Button 
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        trackDownload(String(item.id), item.name)
+                        window.location.href = `pocketposter://download?url=${fileUrl}`
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Open in Pocket Poster
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        trackDownload(String(item.id), item.name)
+                        window.open(fileUrl, '_blank')
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download .tendies
+                    </Button>
+                  )}
                   <Button 
+                    variant="outline"
                     onClick={(e) => {
                       e.stopPropagation()
                       handleOpenInEditor(item)
@@ -383,33 +409,8 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
                     }}
                   >
                     <Youtube className="h-4 w-4 mr-2" />
-                    Tutorial
+                    Watch Tutorial
                   </Button>
-                  {isIOS ? (
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        trackDownload(String(item.id), item.name)
-                        window.location.href = `pocketposter://download?url=${fileUrl}`
-                      }}
-                    >
-                      Open in Pocket Poster
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline" 
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        trackDownload(String(item.id), item.name)
-                        window.open(fileUrl, '_blank')
-                      }}
-                    >
-                      Download .tendies
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -488,50 +489,49 @@ export function WallpapersGrid({ data }: { data: WallpapersResponse }) {
 
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-3">
+                    {isIOS ? (
+                      <Button 
+                        className="w-full"
+                        onClick={() => {
+                          trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
+                          window.location.href = `pocketposter://download?url=${fileUrl}`
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Open in Pocket Poster
+                      </Button>
+                    ) : (
+                      <Button 
+                        className="w-full"
+                        onClick={() => {
+                          trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
+                          window.open(fileUrl, '_blank')
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download .tendies
+                      </Button>
+                    )}
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        setExpandedWallpaper(null)
+                        handleOpenInEditor(expandedWallpaper)
+                      }}
+                      disabled={importingWallpaper === expandedWallpaper.name}
+                      className="w-full"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      {importingWallpaper === expandedWallpaper.name ? 'Opening...' : 'Open in Editor'}
+                    </Button>
                     <Button 
                       variant="outline" 
                       className="w-full"
-                      onClick={() => window.open('https://www.youtube.com/watch?v=ZmZpFaGaRIM', '_blank')}
+                      onClick={() => window.open('https://www.youtube.com/watch?v=nSBQIwAaAEc', '_blank')}
                     >
                       <Youtube className="h-4 w-4 mr-2" />
                       Watch Tutorial
                     </Button>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <Button 
-                        onClick={() => {
-                          setExpandedWallpaper(null)
-                          handleOpenInEditor(expandedWallpaper)
-                        }}
-                        disabled={importingWallpaper === expandedWallpaper.name}
-                        className="flex-1"
-                      >
-                        <Edit className="h-4 w-4 mr-2" />
-                        {importingWallpaper === expandedWallpaper.name ? 'Opening...' : 'Open in Editor'}
-                      </Button>
-                      {isIOS ? (
-                        <Button 
-                          variant="outline" 
-                          className="flex-1"
-                          onClick={() => {
-                            trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
-                            window.location.href = `pocketposter://download?url=${fileUrl}`
-                          }}
-                        >
-                          Open in Pocket Poster
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="outline" 
-                          className="flex-1"
-                          onClick={() => {
-                            trackDownload(String(expandedWallpaper.id), expandedWallpaper.name)
-                            window.open(fileUrl, '_blank')
-                          }}
-                        >
-                          Download .tendies
-                        </Button>
-                      )}
-                    </div>
                     <Button 
                       variant="secondary" 
                       className="w-full"
