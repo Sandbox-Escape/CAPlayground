@@ -658,6 +658,10 @@ export function EditorProvider({
     position: { x: 50, y: 50 },
     size: { w: 120, h: 40 },
     rotation: 0,
+    rotationX: 0,
+    rotationY: 0,
+    cornerRadius: 0,
+    opacity: 1,
     visible: true,
   }), []);
 
